@@ -15,7 +15,7 @@ function Resolve-BeamerUserSid([string]$Identity) {
 }
 
 function Get-BeamerAdministratorPreference([string]$UserSid) {
-    $key = [Microsoft.Win32.Registry]::Users.OpenSubKey("$UserSid\Software\KalkmanCode\Beamer")
+    $key = [Microsoft.Win32.Registry]::Users.OpenSubKey("$UserSid\Software\Scotty")
     if ($null -eq $key) { return $false }
     try {
         if ($key.GetValueKind('RunAsAdministrator') -ne [Microsoft.Win32.RegistryValueKind]::DWord) { return $false }
@@ -31,7 +31,7 @@ function Update-BeamerAutostart([string]$ExePath, [string]$UserSid, [switch]$Rem
     $expectedPath = [IO.Path]::GetFullPath($ExePath)
     $runLevel = if (-not $Remove -and (Get-BeamerAdministratorPreference -UserSid $UserSid)) { 'HighestAvailable' } else { 'LeastPrivilege' }
     foreach ($task in @(Get-ScheduledTask -TaskPath '\' -ErrorAction Stop)) {
-        if ($task.TaskName -ne 'Beamer' -and $task.TaskName -notlike 'Beamer-*') { continue }
+        if ($task.TaskName -ne 'Scotty' -and $task.TaskName -notlike 'Scotty-*') { continue }
         [xml]$xml = Export-ScheduledTask -TaskName $task.TaskName -TaskPath '\' -ErrorAction Stop
         $ns = New-Object Xml.XmlNamespaceManager($xml.NameTable)
         $ns.AddNamespace('t', 'http://schemas.microsoft.com/windows/2004/02/mit/task')
@@ -64,7 +64,7 @@ function Update-BeamerAutostart([string]$ExePath, [string]$UserSid, [switch]$Rem
 }
 
 function Remove-BeamerFirewall([string]$ExePath) {
-    foreach ($name in @('Beamer Receiver (TCP-In)', 'Beamer Pairing (UDP-In)', 'Beamer Pairing (TCP-In)', 'Scotty Files (TCP-In)')) {
+    foreach ($name in @('Scotty Receiver (TCP-In)', 'Scotty Pairing (UDP-In)', 'Scotty Pairing (TCP-In)', 'Scotty Files (TCP-In)')) {
         foreach ($rule in @(Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue)) {
             $filter = $rule | Get-NetFirewallApplicationFilter -ErrorAction Stop
             if ([string]::Equals($filter.Program, $ExePath, [StringComparison]::OrdinalIgnoreCase)) {
@@ -77,9 +77,9 @@ function Remove-BeamerFirewall([string]$ExePath) {
 function Repair-BeamerFirewall([string]$ExePath) {
     Remove-BeamerFirewall -ExePath $ExePath
     $rules = @(
-        @{ Name = 'Beamer Receiver (TCP-In)'; Protocol = 'TCP'; Port = 24820 },
-        @{ Name = 'Beamer Pairing (UDP-In)'; Protocol = 'UDP'; Port = 24821 },
-        @{ Name = 'Beamer Pairing (TCP-In)'; Protocol = 'TCP'; Port = 24821 },
+        @{ Name = 'Scotty Receiver (TCP-In)'; Protocol = 'TCP'; Port = 24820 },
+        @{ Name = 'Scotty Pairing (UDP-In)'; Protocol = 'UDP'; Port = 24821 },
+        @{ Name = 'Scotty Pairing (TCP-In)'; Protocol = 'TCP'; Port = 24821 },
         @{ Name = 'Scotty Files (TCP-In)'; Protocol = 'TCP'; Port = 24822 }
     )
     foreach ($rule in $rules) {
@@ -99,7 +99,7 @@ function Repair-BeamerGameInput {
 }
 
 function Update-BeamerGameInputRecovery([switch]$Remove) {
-    $taskName = 'Beamer-GameInputRecovery'
+    $taskName = 'Scotty-GameInputRecovery'
     if ($Remove) {
         if (Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $taskName -TaskPath '\' -Confirm:$false -ErrorAction Stop
@@ -140,8 +140,8 @@ if ($MyInvocation.InvocationName -ne '.') {
         if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
             throw 'Installer maintenance requires administrator permission.'
         }
-        if (-not [IO.Path]::IsPathRooted($ExePath) -or [IO.Path]::GetFileName($ExePath) -ine 'Beamer.exe' -or -not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
-            throw 'Installer maintenance requires the installed Beamer.exe path.'
+        if (-not [IO.Path]::IsPathRooted($ExePath) -or [IO.Path]::GetFileName($ExePath) -ine 'Scotty.exe' -or -not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
+            throw 'Installer maintenance requires the installed Scotty.exe path.'
         }
         $ExePath = [IO.Path]::GetFullPath($ExePath)
         $UserSid = ([Security.Principal.SecurityIdentifier]$UserSid).Value

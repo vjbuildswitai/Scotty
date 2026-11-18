@@ -92,7 +92,7 @@ def qualify():
 
     try:
         check('frozen_portable_boundary', bool(getattr(sys, 'frozen', False))
-              and portable_runtime.enabled() and (root / 'Beamer.portable').is_file())
+              and portable_runtime.enabled() and (root / 'Scotty.portable').is_file())
         check('fresh_synthetic_folder', not portable_runtime.settings_path().exists())
         check('offscreen_platform', os.environ.get('QT_QPA_PLATFORM') == 'offscreen')
         data = root / 'data'
@@ -257,5 +257,5 @@ def qualify():
 
 
 if (getattr(sys, 'frozen', False) and os.environ.get('BEAMER_PORTABLE_ACCEPTANCE') == '1'
-        and (Path(sys.executable).resolve().parent / 'Beamer.portable').is_file()):
+        and (Path(sys.executable).resolve().parent / 'Scotty.portable').is_file()):
     qualify()

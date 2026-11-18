@@ -15,13 +15,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import firewall_win
 from firewall_win import advise, interpret
 
-EXE = r"C:\Users\alex\AppData\Local\Beamer\Beamer.exe"
+EXE = r"C:\Users\alex\AppData\Local\Beamer\Scotty.exe"
 PORT = firewall_win.protocol.DEFAULT_PORT
 
 
 def rule(action="Allow", profile="Private", program=EXE, port=str(PORT), protocol="TCP", enabled="True", direction="Inbound"):
     return {
-        "name": "{x}", "display": "Beamer Receiver (TCP-In)", "enabled": enabled, "action": action,
+        "name": "{x}", "display": "Scotty Receiver (TCP-In)", "enabled": enabled, "action": action,
         "direction": direction, "profile": profile, "program": program, "protocol": protocol,
         "localPort": [port] if port is not None else ["Any"],
     }
@@ -30,7 +30,7 @@ def rule(action="Allow", profile="Private", program=EXE, port=str(PORT), protoco
 def pairing_rule(action="Allow", profile="Private", program=EXE, enabled="True"):
     """The UDP beacon rule repair() and the installer write beside the TCP one."""
     return {
-        "name": "{y}", "display": "Beamer Pairing (UDP-In)", "enabled": enabled, "action": action,
+        "name": "{y}", "display": "Scotty Pairing (UDP-In)", "enabled": enabled, "action": action,
         "direction": "Inbound", "profile": profile, "program": program, "protocol": "UDP",
         "localPort": [str(firewall_win.PAIRING_PORT)],
     }
@@ -39,7 +39,7 @@ def pairing_rule(action="Allow", profile="Private", program=EXE, enabled="True")
 def pairing_tcp_rule(action="Allow", profile="Private", program=EXE, enabled="True"):
     """The TCP rule for the pairing exchange, hosted while a pairing code is on screen."""
     return {
-        "name": "{z}", "display": "Beamer Pairing (TCP-In)", "enabled": enabled, "action": action,
+        "name": "{z}", "display": "Scotty Pairing (TCP-In)", "enabled": enabled, "action": action,
         "direction": "Inbound", "profile": profile, "program": program, "protocol": "TCP",
         "localPort": [str(firewall_win.PAIRING_PORT)],
     }
@@ -58,7 +58,7 @@ class InstallerAdviceAssertions:
         advice = advise(status)
         self.assertEqual(advice.action, "check")
         self.assertEqual(advice.button, "Check again")
-        self.assertIn("run the Beamer installer again", advice.sentence)
+        self.assertIn("run the Scotty installer again", advice.sentence)
         return advice
 
     def assert_administrator_advice(self, status):
@@ -67,7 +67,7 @@ class InstallerAdviceAssertions:
         self.assertEqual(advice.button, "Check again")
         self.assertIn("administrator", advice.sentence)
         self.assertIn("Windows Firewall", advice.sentence)
-        self.assertNotIn("run the Beamer installer again", advice.sentence)
+        self.assertNotIn("run the Scotty installer again", advice.sentence)
         self.assertEqual(advice.rule_profiles, ("Private",))
         return advice
 
@@ -153,7 +153,7 @@ class InterpretTests(InstallerAdviceAssertions, unittest.TestCase):
         self.assertEqual(status.public_interfaces, ())
         advice = advise(status)
         self.assertEqual(advice.action, "check")
-        self.assertIn("lets your other machines reach Beamer", advice.sentence)
+        self.assertIn("lets your other machines reach Scotty", advice.sentence)
 
     def test_rule_scoped_to_a_profile_the_lan_is_not_on(self):
         # The installer's Private-only rule, but the LAN has been reclassified Public.
@@ -192,7 +192,7 @@ class InterpretTests(InstallerAdviceAssertions, unittest.TestCase):
         self.assertFalse(status.blocked)
 
     def test_executable_path_not_matching_the_rule(self):
-        status = interpret(payload([rule(program=r"C:\Users\alex\code\Beamer\dist\Beamer.exe")]), EXE, PORT)
+        status = interpret(payload([rule(program=r"C:\Users\alex\code\Beamer\dist\Scotty.exe")]), EXE, PORT)
         self.assertFalse(status.allowed)
         self.assert_installer_advice(status)
 
@@ -243,7 +243,7 @@ class InterpretTests(InstallerAdviceAssertions, unittest.TestCase):
     def test_missing_default_port_rules_point_to_installer_regardless_of_elevation(self):
         status = interpret(payload(), EXE, PORT, elevated=False)
         advice = self.assert_installer_advice(status)
-        self.assertIn("run the Beamer installer again", advice.sentence)
+        self.assertIn("run the Scotty installer again", advice.sentence)
 
     def test_custom_port_advice_names_the_administrator_and_port(self):
         status = interpret(payload(), EXE, 30000, elevated=True)
@@ -361,14 +361,16 @@ class RepairScriptTests(unittest.TestCase):
             name=firewall_win._quote(firewall_win.RULE_NAME), port=PORT,
             pairing_name=firewall_win._quote(firewall_win.PAIRING_RULE_NAME), pairing_port=firewall_win.PAIRING_PORT,
             pairing_tcp_name=firewall_win._quote(firewall_win.PAIRING_TCP_RULE_NAME),
+            files_name=firewall_win._quote(firewall_win.FILES_RULE_NAME), files_port=firewall_win.FILES_PORT,
             profiles="Private",
         )
         self.assertIn("-Profile Private ", rendered)
         self.assertNotIn("Public", rendered)
         self.assertIn(f"-Protocol TCP -LocalPort {PORT} ", rendered)
         self.assertIn(f"-Protocol UDP -LocalPort {firewall_win.PAIRING_PORT} ", rendered)
-        self.assertIn(f"-DisplayName 'Beamer Pairing (TCP-In)' -Direction Inbound -Protocol TCP -LocalPort {firewall_win.PAIRING_PORT} ", rendered)
-        self.assertEqual(rendered.count("-Profile Private "), 3)
+        self.assertIn(f"-DisplayName 'Scotty Pairing (TCP-In)' -Direction Inbound -Protocol TCP -LocalPort {firewall_win.PAIRING_PORT} ", rendered)
+        self.assertIn(f"-DisplayName 'Scotty Files (TCP-In)' -Direction Inbound -Protocol TCP -LocalPort {firewall_win.FILES_PORT} ", rendered)
+        self.assertEqual(rendered.count("-Profile Private "), 4)
 
     def test_the_removal_never_runs_bare(self):
         # A bare Remove-NetFirewallRule deletes every rule on the machine.
@@ -377,6 +379,7 @@ class RepairScriptTests(unittest.TestCase):
             name=firewall_win._quote(firewall_win.RULE_NAME),
             pairing_name=firewall_win._quote(firewall_win.PAIRING_RULE_NAME),
             pairing_tcp_name=firewall_win._quote(firewall_win.PAIRING_TCP_RULE_NAME),
+            files_name=firewall_win._quote(firewall_win.FILES_RULE_NAME),
         )
         self.assertNotIn("\nRemove-NetFirewallRule", rendered)
         self.assertIn("foreach ($rule in $stale)", rendered)
@@ -409,7 +412,7 @@ class RepairToleratesAbsentRulesTests(unittest.TestCase):
     def test_a_rule_already_gone_does_not_stop_the_new_rules_being_written(self):
         calls = self.run_repair(NOT_FOUND)
         self.assertEqual(sum("New-NetFirewallRule" in call for call in calls), 1)
-        self.assertEqual(calls[-1].count("New-NetFirewallRule"), 3)
+        self.assertEqual(calls[-1].count("New-NetFirewallRule"), 4)
 
     def test_any_other_removal_failure_still_fails_and_writes_nothing(self):
         calls = []
@@ -429,6 +432,7 @@ class RepairToleratesAbsentRulesTests(unittest.TestCase):
             name=firewall_win._quote(firewall_win.RULE_NAME),
             pairing_name=firewall_win._quote(firewall_win.PAIRING_RULE_NAME),
             pairing_tcp_name=firewall_win._quote(firewall_win.PAIRING_TCP_RULE_NAME),
+            files_name=firewall_win._quote(firewall_win.FILES_RULE_NAME),
         )
         self.assertIn("Sort-Object Name -Unique", removal)
         self.assertIn("could not be found", removal)
@@ -448,7 +452,7 @@ class PairingRuleTests(InstallerAdviceAssertions, unittest.TestCase):
         self.assertTrue(status.allowed)
         self.assertFalse(status.pairing_allowed)
         advice = self.assert_installer_advice(status)
-        self.assertIn("run the Beamer installer again", advice.sentence)
+        self.assertIn("run the Scotty installer again", advice.sentence)
 
     def test_a_missing_pairing_rule_is_reported_for_installer_repair(self):
         # An upgrade from 1.4.x has the receiver and the UDP rule and no TCP one.
@@ -481,7 +485,7 @@ class PairingRuleTests(InstallerAdviceAssertions, unittest.TestCase):
         self.assertTrue(status.pairing_allowed)
         self.assertFalse(status.pairing_tcp_allowed)
         advice = self.assert_installer_advice(status)
-        self.assertIn("run the Beamer installer again", advice.sentence)
+        self.assertIn("run the Scotty installer again", advice.sentence)
 
     def test_both_pairing_rules_missing_points_to_installer_repair(self):
         status = interpret(payload([rule()]), EXE, PORT)

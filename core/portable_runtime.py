@@ -7,7 +7,7 @@ import socket
 import sys
 import tempfile
 
-MARKER = "Beamer.portable"
+MARKER = "Scotty.portable"
 _root = None
 store = None
 listener = None
@@ -52,7 +52,7 @@ def initialise(require_marker=False):
     _root = detected.resolve() if detected is not None else None
     if _root is None:
         if require_marker:
-            raise OSError("Keep Beamer.portable beside Beamer.exe to run the portable app")
+            raise OSError("Keep Scotty.portable beside Scotty.exe to run the portable app")
         return
     # Establish writable storage before Qt, logging or settings can choose a host fallback.
     directory = data_path()

@@ -525,7 +525,7 @@ def inject_mouse_move(dx: int, dy: int) -> None:
 
 # GameInput can leave a SYSTEM-owned window in front after another window closes.
 GAMEINPUT_WINDOW_CLASS = "GameInputServiceWindow"
-GAMEINPUT_RECOVERY_TASK = "Beamer-GameInputRecovery"
+GAMEINPUT_RECOVERY_TASK = "Scotty-GameInputRecovery"
 _seen_foreground = [None]
 _gameinput_lock = threading.Lock()
 _gameinput_restarted_at = float("-inf")

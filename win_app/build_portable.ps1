@@ -12,7 +12,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ProjectDir = Split-Path -Parent $ScriptDir
 $DistDir = Join-Path $ScriptDir 'dist\portable'
 $WorkDir = Join-Path $ScriptDir 'build\portable'
-$Payload = Join-Path $DistDir 'Beamer-portable'
+$Payload = Join-Path $DistDir 'Scotty-portable'
 $Version = (Get-Content (Join-Path $ProjectDir 'VERSION') -Raw).Trim()
 if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$') { throw 'VERSION is not a supported Beamer version' }
 if (-not $OutputDirectory) { $OutputDirectory = $DistDir }
@@ -41,11 +41,11 @@ sys.exit(0 if sys.platform == 'win32' and struct.calcsize('P') == 8 and sys.vers
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller is unavailable' }
     Invoke-Native { & $Python -m PyInstaller --clean --noconfirm --distpath $DistDir --workpath $WorkDir build_portable.spec }
     if ($LASTEXITCODE -ne 0) { throw 'Portable PyInstaller build failed' }
-    $Executable = Join-Path $Payload 'Beamer.exe'
-    if (-not (Test-Path $Executable)) { throw 'Portable build did not create Beamer.exe' }
+    $Executable = Join-Path $Payload 'Scotty.exe'
+    if (-not (Test-Path $Executable)) { throw 'Portable build did not create Scotty.exe' }
 
     Copy-Item (Join-Path $ProjectDir 'LICENSE') (Join-Path $Payload 'LICENSE') -Force
-    [IO.File]::WriteAllText((Join-Path $Payload 'Beamer.portable'), '')
+    [IO.File]::WriteAllText((Join-Path $Payload 'Scotty.portable'), '')
     $Notices = @'
 import importlib.metadata as metadata
 from pathlib import Path
@@ -87,7 +87,7 @@ for name in packages:
     if ($LASTEXITCODE -ne 0) { throw 'Portable licence collection failed' }
 
     # A new COLLECT payload contains no settings, pairings, logs, caches or host identity.
-    $Unexpected = Get-ChildItem $Payload -Force | Where-Object Name -notin @('Beamer.exe', '_internal', 'Beamer.portable', 'LICENSE', 'licences', 'THIRD-PARTY-NOTICES.txt')
+    $Unexpected = Get-ChildItem $Payload -Force | Where-Object Name -notin @('Scotty.exe', '_internal', 'Scotty.portable', 'LICENSE', 'licences', 'THIRD-PARTY-NOTICES.txt')
     if ($Unexpected) { throw 'Unexpected files in portable payload' }
     if ((Get-AuthenticodeSignature $Executable).Status -ne 'NotSigned') { throw 'The portable candidate must be unsigned' }
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null

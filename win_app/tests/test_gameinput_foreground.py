@@ -234,7 +234,7 @@ class GameInputForegroundTests(unittest.TestCase):
                 mock.patch.object(input_injector.time, "sleep", side_effect=release):
             worker()
         self.assertEqual(run.call_args.args[0], [os.path.join(r"C:\Windows\System32", "schtasks.exe"),
-            "/Run", "/TN", "Beamer-GameInputRecovery"])
+            "/Run", "/TN", "Scotty-GameInputRecovery"])
         self.assertEqual(run.call_args.kwargs["creationflags"], subprocess.CREATE_NO_WINDOW)
         placed.assert_called_once_with()
         stale.assert_not_called()

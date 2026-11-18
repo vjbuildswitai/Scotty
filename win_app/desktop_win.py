@@ -278,7 +278,7 @@ def _pointer_marker():
     if portable_runtime.enabled():
         return str(portable_runtime.data_path() / "pointer-hidden")
     base = os.environ.get("LOCALAPPDATA")
-    return os.path.join(base, "Beamer", "pointer-hidden") if base else None
+    return os.path.join(base, "Scotty", "pointer-hidden") if base else None
 
 
 def hide_pointer(reason: str) -> None:

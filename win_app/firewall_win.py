@@ -20,18 +20,21 @@ from core.i18n import tr
 
 LOGGER = logging.getLogger(__name__)
 
-RULE_NAME = "Beamer Receiver (TCP-In)"
+RULE_NAME = "Scotty Receiver (TCP-In)"
 # The pairing beacon's UDP port, written alongside the TCP rule by repair() and the installer.
 # It is judged separately from the TCP rule because the two fail differently: without TCP no
 # other machine can reach Beamer at all, while without UDP everything works except that a new
 # machine never sees this PC in its list and this PC never hears theirs -- and an install that
 # predates the pairing rule has the first and not the second, so reporting only the TCP rule
 # tells that user everything is fine.
-PAIRING_RULE_NAME = "Beamer Pairing (UDP-In)"
+PAIRING_RULE_NAME = "Scotty Pairing (UDP-In)"
 PAIRING_PORT = protocol.PAIRING_PORT
 # Pairing version 3 also hosts the pairing exchange over TCP on the same number while a code is
 # on screen. Judged on its own: without it another machine still finds this PC, then fails to finish pairing.
-PAIRING_TCP_RULE_NAME = "Beamer Pairing (TCP-In)"
+PAIRING_TCP_RULE_NAME = "Scotty Pairing (TCP-In)"
+# Fork (Scotty): the file channel (core/filechannel.py), written with the rest by repair().
+FILES_RULE_NAME = "Scotty Files (TCP-In)"
+FILES_PORT = protocol.FILES_PORT
 _IS_WINDOWS = sys.platform == "win32"
 
 
@@ -329,6 +332,7 @@ $stale = @($({filters}) | Get-NetFirewallRule | Where-Object {{ [string]$_.Direc
 $stale += @(Get-NetFirewallRule -DisplayName {name} -ErrorAction SilentlyContinue)
 $stale += @(Get-NetFirewallRule -DisplayName {pairing_name} -ErrorAction SilentlyContinue)
 $stale += @(Get-NetFirewallRule -DisplayName {pairing_tcp_name} -ErrorAction SilentlyContinue)
+$stale += @(Get-NetFirewallRule -DisplayName {files_name} -ErrorAction SilentlyContinue)
 $stale = @($stale | Sort-Object Name -Unique)
 foreach ($rule in $stale) {{
     try {{ Remove-NetFirewallRule -Name $rule.Name }}
@@ -341,6 +345,7 @@ $exe = {exe}
 New-NetFirewallRule -DisplayName {name} -Direction Inbound -Protocol TCP -LocalPort {port} -Action Allow -Profile {profiles} -Program $exe | Out-Null
 New-NetFirewallRule -DisplayName {pairing_name} -Direction Inbound -Protocol UDP -LocalPort {pairing_port} -Action Allow -Profile {profiles} -Program $exe | Out-Null
 New-NetFirewallRule -DisplayName {pairing_tcp_name} -Direction Inbound -Protocol TCP -LocalPort {pairing_port} -Action Allow -Profile {profiles} -Program $exe | Out-Null
+New-NetFirewallRule -DisplayName {files_name} -Direction Inbound -Protocol TCP -LocalPort {files_port} -Action Allow -Profile {profiles} -Program $exe | Out-Null
 """
 
 _TRUST_SCRIPT = _PREAMBLE + """
@@ -385,6 +390,7 @@ def repair(exe: str, port: int, profiles: Sequence[str] = ("Private",)) -> None:
         name=_quote(RULE_NAME),
         pairing_name=_quote(PAIRING_RULE_NAME),
         pairing_tcp_name=_quote(PAIRING_TCP_RULE_NAME),
+        files_name=_quote(FILES_RULE_NAME),
     )
     try:
         _powershell(_REMOVE_SCRIPT.format(filters=_RULES_FOR_LEAF, **names))
@@ -394,7 +400,7 @@ def repair(exe: str, port: int, profiles: Sequence[str] = ("Private",)) -> None:
         if "could not be found" not in str(exc):
             raise
         LOGGER.info("A firewall rule was already gone while repairing: %s", exc)
-    _powershell(_ADD_SCRIPT.format(port=int(port), pairing_port=PAIRING_PORT, profiles=",".join(wanted), **names))
+    _powershell(_ADD_SCRIPT.format(port=int(port), pairing_port=PAIRING_PORT, files_port=FILES_PORT, profiles=",".join(wanted), **names))
 
 
 def trust_network(interface_indexes: Sequence[int]) -> None:

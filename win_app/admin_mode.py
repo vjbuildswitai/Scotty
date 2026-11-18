@@ -16,7 +16,7 @@ import autostart_win
 
 
 LOGGER = logging.getLogger(__name__)
-REGISTRY_PATH = r"Software\KalkmanCode\Beamer"
+REGISTRY_PATH = r"Software\Scotty"
 REGISTRY_VALUE = "RunAsAdministrator"
 NS = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 DESKTOP_SHELL_UNAVAILABLE = 2

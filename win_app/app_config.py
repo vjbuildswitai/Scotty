@@ -229,8 +229,8 @@ def default_config_path() -> Path:
         return portable_runtime.settings_path()
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CONFIG_HOME")
     if base:
-        return Path(base) / "Beamer" / "settings.json"
-    return Path.home() / ".config" / "Beamer" / "settings.json"
+        return Path(base) / "Scotty" / "settings.json"
+    return Path.home() / ".config" / "Scotty" / "settings.json"
 
 
 def legacy_config_path(path: Path) -> Path:

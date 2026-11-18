@@ -222,7 +222,7 @@ def configure_logging() -> Optional[Path]:
     global LOG_PATH
     candidates = [default_config_path().parent]
     if not portable_runtime.enabled():
-        candidates.append(Path(tempfile.gettempdir()) / "Beamer")
+        candidates.append(Path(tempfile.gettempdir()) / "Scotty")
     for directory in candidates:
         try:
             directory.mkdir(parents=True, exist_ok=True)

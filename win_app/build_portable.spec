@@ -34,7 +34,7 @@ executable = EXE(
     analysis.scripts,
     [],
     exclude_binaries=True,
-    name="Beamer",
+    name="Scotty",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -58,5 +58,5 @@ portable = COLLECT(
     analysis.datas,
     strip=False,
     upx=False,
-    name="Beamer-portable",
+    name="Scotty-portable",
 )
