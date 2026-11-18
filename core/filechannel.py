@@ -70,6 +70,7 @@ TO_SENDER = b"to-sender"
 TO_RECEIVER = b"to-receiver"
 STAGING = ".scotty-incoming"
 DISK_HEADROOM_BYTES = 64 * 1024 * 1024
+PROGRESS_SECONDS = 0.25
 
 
 class TransferError(Exception):
@@ -237,6 +238,11 @@ class FileServer:
         self._lock = threading.Lock()
         self._sock = None
         self._closed = threading.Event()
+        self._serving = {}  # connection: Offer, for cancel_sends
+        # on_progress(offer, state, sent_bytes): state is "sending" (sent_bytes so far), "sent" when
+        # the receiver said bye with everything, or "stopped" when the connection ended before that.
+        # Called on the serving thread.
+        self.on_progress = None
 
     @property
     def port(self):
@@ -276,6 +282,33 @@ class FileServer:
 
     def manifest(self, offer: Offer) -> dict:
         return protocol.files_msg(offer.transfer, offer.ticket, self.port, offer.names, offer.count, offer.total_bytes)
+
+    def cancel_sends(self) -> bool:
+        """Stop every transfer being served now, and withdraw their offers. True when one was."""
+        with self._lock:
+            serving = list(self._serving.items())
+            for _, offer in serving:
+                self._offers.pop(offer.transfer, None)
+        for conn, _ in serving:
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        return bool(serving)
+
+    @property
+    def sending(self) -> bool:
+        with self._lock:
+            return bool(self._serving)
+
+    def _tell(self, offer, state, sent):
+        callback = self.on_progress
+        if callback is None:
+            return
+        try:
+            callback(offer, state, sent)
+        except Exception:
+            LOGGER.exception("the sending progress could not be shown")
 
     def withdraw(self, transfer=None):
         with self._lock:
@@ -322,11 +355,22 @@ class FileServer:
                                    _key(offer.ticket, transfer, random_r, random_s, TO_RECEIVER),
                                    _key(offer.ticket, transfer, random_r, random_s, TO_SENDER))
                 conn.settimeout(SOCKET_SECONDS)
-                self._answer(channel, offer)
+                with self._lock:
+                    self._serving[conn] = offer
+                progress = _Sent(self, offer)
+                try:
+                    finished = self._answer(channel, offer, progress)
+                finally:
+                    with self._lock:
+                        self._serving.pop(conn, None)
+                self._tell(offer, "sent" if finished else "stopped", progress.bytes)
         except (TransferError, OSError) as exc:
             LOGGER.info("file connection from %s ended: %s", address[0], exc)
+            if "offer" in locals() and "progress" in locals():
+                self._tell(offer, "stopped", progress.bytes)
 
-    def _answer(self, channel, offer):
+    def _answer(self, channel, offer, progress):
+        """True when the receiver said bye after taking everything it listed."""
         while True:
             kind, message = channel.recv()
             if kind != KIND_CONTROL:
@@ -340,13 +384,13 @@ class FileServer:
                 index = message.get("index")
                 if type(index) is not int or not 0 <= index < len(offer.entries) or offer.entries[index].is_dir:
                     raise TransferError("the receiver asked for something not on offer")
-                self._send_file(channel, offer.entries[index])
+                self._send_file(channel, offer.entries[index], progress)
             elif op == "bye":
-                return
+                return progress.bytes == offer.total_bytes
             else:
                 raise TransferError(f"the receiver sent an unknown request {op!r}")
 
-    def _send_file(self, channel, entry):
+    def _send_file(self, channel, entry, progress):
         digest, left = hashlib.sha256(), entry.size
         try:
             source = open(entry.source, "rb")
@@ -366,7 +410,24 @@ class FileServer:
                 digest.update(chunk)
                 channel.send(KIND_DATA, chunk)
                 left -= len(chunk)
+                progress.add(len(chunk))
         channel.send_control({"op": "done", "sha256": digest.hexdigest()})
+
+
+class _Sent:
+    """Bytes sent on one connection, reported at most every PROGRESS_SECONDS (and at the start)."""
+
+    def __init__(self, server, offer):
+        self._server, self._offer = server, offer
+        self.bytes = 0
+        self._last = None
+
+    def add(self, count):
+        self.bytes += count
+        now = time.monotonic()
+        if self._last is None or now - self._last >= PROGRESS_SECONDS or self.bytes == self._offer.total_bytes:
+            self._last = now
+            self._server._tell(self._offer, "sending", self.bytes)
 
 
 # The receiver
