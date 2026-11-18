@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QFileDialog,
     QStackedWidget,
     QStyle,
     QSystemTrayIcon,
@@ -89,6 +91,7 @@ import pages_win
 import hardware_win
 import peers_view
 import platform_parts
+import scotty_files
 import qr_code
 import quit_signals as quit_signals_module
 import global_shortcut_portal
@@ -342,6 +345,7 @@ class StatusBridge(QObject):
     # Either link, carrying a peer's Same on all machines state: (peer id, data).
     settings = Signal(str, object)
     identify = Signal(object)
+    files_event = Signal(object)  # fork (Scotty): a FilesBridge notice, from any thread
     shook_home = Signal(object)
     alert = Signal(str, str)
     # (version, url) when a newer Beamer is out, else None.
@@ -688,6 +692,17 @@ class WindowsApplication(QWidget):
         # this PC's own arrangement the moment a link comes up.
         self.sender.settings_callback = lambda peer, data: self.bridge.settings.emit(protocol.id_text(peer), data)
         self.sender.identify_callback = self._receive_identify_screens
+        # Fork (Scotty): copied files follow the pointer, Windows to Windows (FILES.md).
+        self.files = None
+        self.files_toast = None
+        self.files_path = app_config.files_settings_path(self.config_path)
+        if sys.platform == "win32" and hasattr(platform_parts.clipboard, "get_files"):
+            self.files = scotty_files.FilesBridge(app_config.load_files_settings(self.files_path),
+                                                  platform_parts.clipboard, self.bridge.files_event.emit)
+            self.bridge.files_event.connect(self._on_files_event)
+            self.server.files = self.files
+            self.sender.files = self.files
+            self.files.start()
         self.sender.arrangement_callback = lambda peer, read: self.bridge.arrangement.emit(
             protocol.id_text(peer), read["edge"], read["set_at"], protocol.id_text(read["by"]), read.get("way_back"),
             protocol.id_text(read["way_back_by"]) if read.get("way_back_by") else None
@@ -982,6 +997,8 @@ class WindowsApplication(QWidget):
         layout.addWidget(self.link_module)
         layout.addWidget(self._input_module())
         layout.addWidget(self._same_module(current))
+        if self.files is not None:
+            layout.addWidget(self._files_module())
         self.permissions_module = None
         if pages_win.linux_permissions_visible(sys.platform, platform_parts.WAYLAND):
             self.permissions_module = self._permissions_module()
@@ -1115,6 +1132,89 @@ class WindowsApplication(QWidget):
             self.permission_state.ask_again(direction)
         except Exception as exc:
             self.permission_state.report(direction, "unavailable", str(exc))
+
+    # Fork (Scotty): files
+
+    def _files_module(self) -> QWidget:
+        settings = self.files.settings
+        module = widgets.Module(tr("Files"))
+        self.files_switch = widgets.Switch(tr("Copied files follow the pointer"))
+        self.files_switch.setFont(theme.font(theme.TYPE["body"]))
+        self.files_switch.setChecked(settings["enabled"])
+        self.files_switch.toggled.connect(lambda on: self._set_files(enabled=bool(on)))
+        module.body.addWidget(self.files_switch)
+        module.body.addWidget(widgets.label(
+            tr("Copy files or folders in Explorer, move to another Windows PC running Scotty, and press Ctrl+V. "
+               "They travel over their own connection on TCP {port}, so the pointer never waits for them.").format(
+                port=protocol.FILES_PORT), "note", wrap=True))
+        folder_line = QHBoxLayout()
+        self.files_folder_label = widgets.label(settings["drop_folder"], "readout", wrap=True)
+        self.files_folder_label.setMinimumWidth(0)
+        self.files_folder_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        folder_line.addWidget(self.files_folder_label, 1)
+        change = widgets.ActionButton(tr("Change"))
+        change.setProperty("vernier", "small")
+        change.clicked.connect(self._choose_files_folder)
+        folder_line.addWidget(change)
+        open_button = widgets.ActionButton(tr("Open"))
+        open_button.setProperty("vernier", "small")
+        open_button.clicked.connect(self._open_files_folder)
+        folder_line.addWidget(open_button)
+        module.body.addWidget(widgets.label(tr("Received files go to"), "note", wrap=True))
+        module.body.addLayout(folder_line)
+        limit_line = QHBoxLayout()
+        limit_line.addWidget(widgets.label(tr("Largest transfer, in GB"), "body"), 1)
+        self.files_limit = QSpinBox()
+        self.files_limit.setRange(1, 1000000)
+        self.files_limit.setValue(max(1, round(settings["max_bytes"] / 1024 ** 3)))
+        self.files_limit.setKeyboardTracking(False)
+        self.files_limit.valueChanged.connect(lambda value: self._set_files(max_bytes=int(value) * 1024 ** 3))
+        limit_line.addWidget(self.files_limit)
+        module.body.addLayout(limit_line)
+        module.body.addWidget(widgets.label(
+            tr("Applies to files this PC sends and receives. Turning files on or off takes effect for the "
+               "other machine when the link next connects."), "note", wrap=True))
+        return module
+
+    def _set_files(self, **changes) -> None:
+        if self.files is None:
+            return
+        settings = dict(self.files.settings, **changes)
+        try:
+            app_config.save_files_settings(self.files_path, settings)
+        except OSError:
+            LOGGER.exception("Could not save the files settings")
+        self.files.update(settings)
+        label = getattr(self, "files_folder_label", None)
+        if label is not None:
+            label.setText(settings["drop_folder"])
+
+    def _choose_files_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, tr("Where received files go"), self.files.settings["drop_folder"])
+        if folder:
+            self._set_files(drop_folder=os.path.normpath(folder))
+
+    def _open_files_folder(self) -> None:
+        folder = self.files.settings["drop_folder"]
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError:
+            LOGGER.exception("Could not make the drop folder")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _on_files_event(self, event) -> None:
+        """A FilesBridge notice, on the GUI thread: the progress panel while files arrive and when
+        they land; a refusal to send shows as the usual tray notice."""
+        if self._closing or not isinstance(event, dict):
+            return
+        if event.get("state") == "refused":
+            if hasattr(self, "tray") and self.tray.isVisible():
+                self.tray.showMessage(event.get("title", ""), event.get("message", ""), QIcon(str(ICON_PATH)), 6000)
+            return
+        if self.files_toast is None:
+            import scotty_toast
+            self.files_toast = scotty_toast.TransferToast(self.files.cancel)
+        self.files_toast.show_event(event)
 
     def _tray_module(self, current: Config) -> QWidget:
         module = widgets.Module(tr("Tray"))
@@ -2029,7 +2129,8 @@ class WindowsApplication(QWidget):
             "app": VERSION[:32] if VERSION.isascii() and VERSION.isprintable() else "dev",
             # A swipe has no shortcut every Linux desktop shares, so Linux does not offer gestures.
             "caps": [cap for cap in ("clipboard", "clipboard_image", "gestures", "media_keys", "text", "settings", "design_sync", "layout", "profiles", "displays", "identify_screens", "ping_rtt", "motion_path")
-                     if not (cap == "gestures" and OWN_PLATFORM == "linux")],
+                     if not (cap == "gestures" and OWN_PLATFORM == "linux")]
+                    + ([protocol.CAP_CLIPBOARD_FILES] if getattr(self, "files", None) is not None and self.files.advertised else []),
             "port": self._settings_port,
         }
 
@@ -5530,6 +5631,8 @@ class WindowsApplication(QWidget):
             return
         self._closing = True
         self.identify_screens.stop()
+        if self.files is not None:
+            self.files.stop()
         self.refresh_timer.stop()
         self.update_checker.stop()
         if self.pairing is not None:

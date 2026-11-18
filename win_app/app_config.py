@@ -1162,3 +1162,64 @@ def apply_arrangement(path: Path, peer: str, edge: str, set_at: int, by: str, wa
         if outcome["changed"]:
             _write_json(path, outcome["settings"])
         return outcome["changed"], []
+
+
+# Fork (Scotty): copied files across the edge (FILES.md). Kept in scotty.json beside settings.json
+# rather than inside it, so profile sync and the settings migrations never see or rewrite them.
+FILES_FILE = "scotty.json"
+FILES_DEFAULT_MAX_BYTES = 2 * 1024 ** 3
+FILES_MAX_BYTES_CEILING = 2 ** 53 - 1
+
+
+def files_default_drop_folder() -> str:
+    return str(Path(os.environ.get("USERPROFILE") or Path.home()) / "Downloads" / "Scotty Drop")
+
+
+def files_defaults() -> dict:
+    return {"enabled": True, "drop_folder": files_default_drop_folder(), "max_bytes": FILES_DEFAULT_MAX_BYTES}
+
+
+def files_settings_path(settings_path: Path) -> Path:
+    return Path(settings_path).with_name(FILES_FILE)
+
+
+def load_files_settings(path: Path) -> dict:
+    """scotty.json's files settings over the defaults; a missing, unreadable or invalid file, or any
+    one invalid value, falls back to the default for it rather than failing the app."""
+    settings = files_defaults()
+    try:
+        with open(path, "r", encoding="utf-8") as source:
+            raw = json.load(source)
+    except (OSError, ValueError):
+        return settings
+    files = raw.get("files") if isinstance(raw, dict) else None
+    if not isinstance(files, dict):
+        return settings
+    if isinstance(files.get("enabled"), bool):
+        settings["enabled"] = files["enabled"]
+    folder = files.get("drop_folder")
+    if isinstance(folder, str) and folder.strip() and os.path.isabs(os.path.expandvars(folder)):
+        settings["drop_folder"] = os.path.expandvars(folder)
+    limit = files.get("max_bytes")
+    if type(limit) is int and 1 <= limit <= FILES_MAX_BYTES_CEILING:
+        settings["max_bytes"] = limit
+    return settings
+
+
+def save_files_settings(path: Path, settings: dict) -> None:
+    """Write `settings` (as load_files_settings returns them) to scotty.json, replacing it whole."""
+    payload = {"files": {"enabled": bool(settings["enabled"]), "drop_folder": str(settings["drop_folder"]),
+                         "max_bytes": int(settings["max_bytes"])}}
+    # Not _write_json: in a portable run that writes settings.json's own store, not this file.
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)

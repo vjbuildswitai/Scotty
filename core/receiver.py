@@ -583,6 +583,9 @@ class LinkResponder:
             "link": link_callback,
         }
         self._announce = announce or (lambda peer: [])
+        # Fork (Scotty): an object with `outgoing(host)` -> a `files` manifest or None, and
+        # `incoming(host, read)`, set by the app; None leaves files out entirely.
+        self.files = None
         self._prebound_listener = listener
         # This machine's speed for a peer's pointer and scroll, and whether
         # its edges are held (Pause crossing, a full-screen app), which keeps the zones from firing.
@@ -1110,6 +1113,8 @@ class LinkResponder:
                 self._on_focus(link, message)
             elif kind == protocol.MSG_CLIPBOARD:
                 self._on_clipboard(link, message)
+            elif kind == protocol.MSG_FILES:
+                self._on_files(link, message)
             elif kind == protocol.MSG_ARRANGEMENT:
                 read = protocol.read_arrangement_v6(message, time.time())
                 if read is not None:
@@ -1818,6 +1823,32 @@ class LinkResponder:
             visit = self._visit
         self._clipboard_later(lambda: self._set_clipboard(link, visit, text, image), (id(link), visit))
 
+    def _on_files(self, link: _Link, message) -> None:
+        """Fork (Scotty): copied files offered by the machine that owns this one, taken only from
+        it and only while it does, like its clipboard; the fetch itself runs off this thread."""
+        read = protocol.read_files(message)
+        files = self.files
+        if (read is None or files is None or protocol.CAP_CLIPBOARD_FILES not in link.caps
+                or protocol.CAP_CLIPBOARD_FILES not in link.own_caps):
+            return
+        with self._lock:
+            if self._owner is not link:
+                return
+        try:
+            files.incoming(link.host, read)
+        except Exception:
+            LOGGER.exception("Could not take the files %s offered", link.name)
+
+    def _files_manifest(self, link: _Link):
+        files = self.files
+        if files is None or protocol.CAP_CLIPBOARD_FILES not in link.caps or protocol.CAP_CLIPBOARD_FILES not in link.own_caps:
+            return None
+        try:
+            return files.outgoing(link.host)
+        except Exception:
+            LOGGER.exception("Could not offer the copied files to %s", link.name)
+            return None
+
     def _clipboard_later(self, job, write=None) -> None:
         with self._clipboard_jobs_lock:
             if write is not None and self._clipboard_jobs and self._clipboard_jobs[-1][1] == write:
@@ -1929,11 +1960,15 @@ class LinkResponder:
             text = None
         if "clipboard_image" not in link.caps or image is None or not protocol.png_fits(image):
             image = None
-        if text is None and image is None:
+        manifest = self._files_manifest(link)
+        if text is None and image is None and manifest is None:
             return
         with self._lock:
             if self._visit == visit and self._owner is None and self._clipboard_stamp() == stamp:
-                link.post(protocol.clipboard_msg(text, image))
+                if text is not None or image is not None:
+                    link.post(protocol.clipboard_msg(text, image))
+                if manifest is not None:
+                    link.post(manifest)
 
     # Landing and the lock screen
 

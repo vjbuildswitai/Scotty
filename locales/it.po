@@ -1600,7 +1600,7 @@ msgstr "Vista"
 msgid "Window"
 msgstr "Finestra"
 
-#: mac_app/kvm_bridge_app.py
+#: mac_app/kvm_bridge_app.py win_app/scotty_toast.py
 msgid "Close"
 msgstr "Chiudi"
 
@@ -1789,7 +1789,7 @@ msgstr "Elimina…"
 msgid "Profile name"
 msgstr "Nome del profilo"
 
-#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/kvm_bridge_win.py win_app/machines_win.py
+#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/kvm_bridge_win.py win_app/machines_win.py win_app/scotty_toast.py
 msgid "Cancel"
 msgstr "Annulla"
 
@@ -4468,6 +4468,26 @@ msgid "Receive input — Remote Desktop"
 msgstr "Ricevi input: Desktop remoto"
 
 #: win_app/kvm_bridge_win.py
+msgid "Files"
+msgstr "File"
+
+#: win_app/kvm_bridge_win.py
+msgid "Copied files follow the pointer"
+msgstr "I file copiati seguono il puntatore"
+
+#: win_app/kvm_bridge_win.py
+msgid "Change"
+msgstr "Cambia"
+
+#: win_app/kvm_bridge_win.py
+msgid "Open"
+msgstr "Apri"
+
+#: win_app/kvm_bridge_win.py
+msgid "Where received files go"
+msgstr "Dove vanno i file ricevuti"
+
+#: win_app/kvm_bridge_win.py
 msgid "Tray"
 msgstr "Area di notifica"
 
@@ -4694,6 +4714,18 @@ msgid "Ask again"
 msgstr "Chiedi di nuovo"
 
 #: win_app/kvm_bridge_win.py
+msgid "Received files go to"
+msgstr "I file ricevuti vanno in"
+
+#: win_app/kvm_bridge_win.py
+msgid "Largest transfer, in GB"
+msgstr "Trasferimento massimo, in GB"
+
+#: win_app/kvm_bridge_win.py
+msgid "Applies to files this PC sends and receives. Turning files on or off takes effect for the other machine when the link next connects."
+msgstr "Vale per i file che questo PC invia e riceve. Attivare o disattivare i file ha effetto sull'altra macchina alla prossima connessione del collegamento."
+
+#: win_app/kvm_bridge_win.py
 msgid "Download portable zip"
 msgstr "Scarica lo zip portatile"
 
@@ -4887,6 +4919,11 @@ msgid ""
 msgstr ""
 "Beamer {version}\n"
 "{link}"
+
+#: win_app/kvm_bridge_win.py
+#, python-brace-format
+msgid "Copy files or folders in Explorer, move to another Windows PC running Scotty, and press Ctrl+V. They travel over their own connection on TCP {port}, so the pointer never waits for them."
+msgstr "Copia file o cartelle in Esplora file, passa a un altro PC Windows con Scotty e premi Ctrl+V. Viaggiano su una connessione propria sulla porta TCP {port}, così il puntatore non li aspetta mai."
 
 #: win_app/kvm_bridge_win.py
 msgid "No portable download is available for this release. See What's new."
@@ -5416,6 +5453,89 @@ msgstr "Beamer Portable richiede il marcatore Beamer.portable e una cartella scr
 #: win_app/portable_entry.py
 msgid "Beamer Portable"
 msgstr "Beamer Portable"
+
+#: win_app/scotty_files.py
+msgid "Press Ctrl+V in any folder to paste."
+msgstr "Premi Ctrl+V in una cartella qualsiasi per incollarli."
+
+#: win_app/scotty_files.py
+msgid "Copied files were not sent"
+msgstr "I file copiati non sono stati inviati"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "“{name}” ({size})"
+msgstr "“{name}” ({size})"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "1 file ({size})"
+msgstr "1 file ({size})"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{count} files ({size})"
+msgstr "{count} file ({size})"
+
+#: win_app/scotty_files.py
+msgid "Scotty cannot send files"
+msgstr "Scotty non può inviare file"
+
+#: win_app/scotty_files.py
+msgid "Something went wrong; nothing was kept."
+msgstr "Qualcosa è andato storto; non è stato tenuto nulla."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} arrived"
+msgstr "Trasferimento completato: {what}"
+
+#: win_app/scotty_files.py
+msgid "They could not be read on this PC."
+msgstr "Non è stato possibile leggerli su questo PC."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{size} is over this PC's limit of {limit}. Raise it under Files on the Overview page."
+msgstr "{size} supera il limite di questo PC di {limit}. Alzalo in File nella pagina Panoramica."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "Receiving {what}"
+msgstr "Ricezione di {what}"
+
+#: win_app/scotty_files.py
+msgid "Transfer cancelled"
+msgstr "Trasferimento annullato"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "They are in {folder}. They could not be put on the clipboard; open the folder to use them."
+msgstr "Sono in {folder}. Non è stato possibile metterli negli appunti; apri la cartella per usarli."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "Port {port} is in use by another program, so copied files will not follow the pointer."
+msgstr "La porta {port} è usata da un altro programma, quindi i file copiati non seguiranno il puntatore."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "Copy at most {count} items at once, or put them in one folder."
+msgstr "Copia al massimo {count} elementi alla volta, oppure mettili in una cartella."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} did not arrive"
+msgstr "Trasferimento non riuscito: {what}"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} did not arrive; nothing was kept."
+msgstr "Trasferimento non riuscito: {what}. Non è stato tenuto nulla."
+
+#: win_app/scotty_toast.py
+msgid "Open folder"
+msgstr "Apri cartella"
 
 #: win_app/sender.py
 msgid "Not connected"
