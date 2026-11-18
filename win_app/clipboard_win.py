@@ -428,3 +428,159 @@ def set_contents(text: Optional[str], png: Optional[bytes]) -> bool:
     except Exception:
         LOGGER.exception("failed to set the Windows clipboard")
         return False
+
+
+# Files on the clipboard (fork: Scotty, FILES.md). Explorer's Copy puts the selected paths on the
+# clipboard as CF_HDROP: a global block holding a DROPFILES header and then the full paths, each
+# NUL-terminated, with one more NUL after the last. The block is parsed and built here in pure
+# Python, so it runs and is tested off Windows; shell32's DragQueryFileW would read the same bytes.
+# Cut (Ctrl+X) puts the same block on the clipboard, with a "Preferred DropEffect" saying move;
+# Scotty always copies and never deletes anything on the machine the files came from.
+
+CF_HDROP = 15
+DROPFILES_SIZE = 20
+HDROP_MAX_PATHS = 10000
+HDROP_MAX_BYTES = 16 * 1024 * 1024
+_HDROP_PATH_MAX_CHARS = 32767
+
+
+def parse_hdrop(block: bytes):
+    """The paths in a CF_HDROP block, in order, or None for anything that is not one: too short,
+    a list offset outside the block, no terminating double NUL, an empty list, a relative path,
+    or more than HDROP_MAX_PATHS. Takes the wide (UTF-16) list Explorer writes and the ANSI one
+    older apps write. Never raises on junk."""
+    try:
+        block = bytes(block)
+        if len(block) < DROPFILES_SIZE or len(block) > HDROP_MAX_BYTES:
+            return None
+        offset, _x, _y, _nonclient, wide = struct.unpack_from("<IiiII", block, 0)
+        if offset < DROPFILES_SIZE or offset >= len(block):
+            return None
+        data = block[offset:]
+        if wide:
+            usable = len(data) - len(data) % 2
+            text = data[:usable].decode("utf-16-le", errors="strict")
+        else:
+            text = data.decode("mbcs" if _IS_WINDOWS else "cp1252", errors="strict")
+        end = text.find("\x00\x00")
+        if end < 0:
+            return None
+        paths = text[:end].split("\x00")
+        if not paths or len(paths) > HDROP_MAX_PATHS:
+            return None
+        for path in paths:
+            if not _absolute_windows_path(path):
+                return None
+        return paths
+    except (struct.error, UnicodeDecodeError, LookupError):
+        return None
+
+
+def build_hdrop(paths) -> bytes:
+    """A CF_HDROP block naming `paths` (absolute Windows paths): the 20-byte DROPFILES header with
+    the list right after it and fWide set, then the paths as UTF-16LE, each NUL-terminated, and a
+    final NUL. Raises ValueError for an empty list or a path parse_hdrop would refuse."""
+    paths = list(paths)
+    if not paths or len(paths) > HDROP_MAX_PATHS or not all(_absolute_windows_path(path) for path in paths):
+        raise ValueError("CF_HDROP takes 1 to %d absolute paths" % HDROP_MAX_PATHS)
+    header = struct.pack("<IiiII", DROPFILES_SIZE, 0, 0, 0, 1)
+    return header + ("\x00".join(paths) + "\x00\x00").encode("utf-16-le")
+
+
+def _absolute_windows_path(path) -> bool:
+    """A drive path (C:\\...) or a UNC path (\\\\server\\share\\...), with no NUL in it."""
+    if not isinstance(path, str) or not 3 <= len(path) <= _HDROP_PATH_MAX_CHARS or "\x00" in path:
+        return False
+    if path[0].isalpha() and path[0].isascii() and path[1:3] in (":\\", ":/"):
+        return True
+    return path.startswith("\\\\") and len(path.lstrip("\\")) > 0
+
+
+def _read_clipboard_hdrop(win32, mem32):
+    """The CF_HDROP block on the (already-open) clipboard, or None when there is none."""
+    handle = win32.GetClipboardData(CF_HDROP)
+    if not handle:
+        if win32.IsClipboardFormatAvailable(CF_HDROP):
+            raise OSError("the clipboard file list could not be read")
+        return None
+    size = mem32.GlobalSize(handle)
+    if not size or size > HDROP_MAX_BYTES:
+        raise OSError("the clipboard file list has no usable size")
+    pointer = mem32.GlobalLock(handle)
+    if not pointer:
+        raise OSError("the clipboard file list could not be locked")
+    try:
+        return ctypes.string_at(pointer, size)
+    finally:
+        mem32.GlobalUnlock(handle)
+
+
+def _get_files(win32, mem32, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RETRY_DELAY_SECONDS, sleep=time.sleep):
+    if not win32.IsClipboardFormatAvailable(CF_HDROP):
+        return None
+    if not _open_clipboard(win32, attempts, delay, sleep):
+        LOGGER.warning("could not open the clipboard to read copied files")
+        return None
+    try:
+        block = _read_clipboard_hdrop(win32, mem32)
+    finally:
+        win32.CloseClipboard()
+    if block is None:
+        return None
+    paths = parse_hdrop(block)
+    if paths is None:
+        LOGGER.warning("the copied file list on the clipboard was not usable")
+    return paths
+
+
+def _set_files(win32, mem32, paths, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RETRY_DELAY_SECONDS, sleep=time.sleep, written=None):
+    block = build_hdrop(paths)
+    owner = win32.CreateWindowExW(0, "STATIC", None, 0, 0, 0, 0, 0, -3, None, None, None)
+    if not owner:
+        LOGGER.warning("could not create the clipboard owner")
+        return False
+    try:
+        if not _open_clipboard(win32, attempts, delay, sleep, owner=owner):
+            LOGGER.warning("could not open the clipboard to put received files on it")
+            return False
+        try:
+            if not win32.EmptyClipboard():
+                return False
+            wrote = _put_clipboard_data(win32, mem32, CF_HDROP, block)
+            if wrote and written is not None:
+                written(win32.GetClipboardSequenceNumber())
+            return wrote
+        finally:
+            win32.CloseClipboard()
+    finally:
+        win32.DestroyWindow(owner)
+
+
+def get_files():
+    """The full paths of the files and folders copied in Explorer (CF_HDROP), in order, or None
+    when the clipboard holds none, this is not Windows, or reading failed. Never raises."""
+    if not _IS_WINDOWS:
+        return None
+    try:
+        with _LOCK:
+            return _get_files(user32, kernel32)
+    except Exception:
+        LOGGER.exception("failed to read the copied files from the Windows clipboard")
+        return None
+
+
+def set_files(paths) -> bool:
+    """Replace the Windows clipboard with `paths` as copied files, so Ctrl+V in Explorer pastes
+    them. Counts as written from a peer, like set_contents, so it is never sent back. Returns
+    False off Windows or when the write failed. Never raises."""
+    if not _IS_WINDOWS:
+        return False
+    def remember(sequence):
+        global _synced_sequence, _written_sequence
+        _synced_sequence = _written_sequence = sequence
+    try:
+        with _LOCK:
+            return _set_files(user32, kernel32, paths, written=remember)
+    except Exception:
+        LOGGER.exception("failed to put received files on the Windows clipboard")
+        return False
