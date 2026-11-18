@@ -32,7 +32,7 @@ PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\Beamer.exe
 ; An older elevated receiver must still be quit before its executable can be replaced.
 AppMutex=Beamer.Receiver
-SetupIconFile=Beamer.ico
+SetupIconFile=Scotty.ico
 ; Beamer.exe is x64. This refuses 32-bit Windows with the installer's own message; Windows 11 on
 ; ARM is allowed, as it runs x64 apps under emulation.
 ArchitecturesAllowed=x64compatible

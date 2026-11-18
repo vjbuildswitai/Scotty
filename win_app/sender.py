@@ -27,7 +27,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from core import ignored
+from core import brand, ignored
 from core import keytable
 from core import owner as owner_module
 from core import peerlist
@@ -1735,7 +1735,7 @@ class LinkSender:
         if self.on_alert is None:
             return
         try:
-            self.on_alert("Beamer", message)
+            self.on_alert(brand.NAME, message)
         except Exception:
             LOGGER.exception("Alert callback failed")
 

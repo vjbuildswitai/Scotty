@@ -26,6 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
+from core.brand import rebrand
 from core.locale import americanise
 
 
@@ -51,7 +52,7 @@ def N_(message: str) -> str:
 
 
 def tr(message: str) -> str:
-    return americanise(_translations.gettext(message))
+    return rebrand(message, americanise(_translations.gettext(message)))
 
 
 def matches_translation(text: str, *templates: str) -> bool:
@@ -64,11 +65,11 @@ def matches_translation(text: str, *templates: str) -> bool:
 
 
 def trn(singular: str, plural: str, n: int) -> str:
-    return americanise(_translations.ngettext(singular, plural, n))
+    return rebrand(singular, americanise(_translations.ngettext(singular, plural, n)))
 
 
 def trc(context: str, message: str) -> str:
-    return americanise(_translations.pgettext(context, message))
+    return rebrand(message, americanise(_translations.pgettext(context, message)))
 
 
 def joined(items) -> str:

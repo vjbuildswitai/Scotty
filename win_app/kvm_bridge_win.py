@@ -111,7 +111,7 @@ from shake_stroke import shake_stroke
 import theme
 import tray_glyph
 import tokens
-from core import updates
+from core import brand, updates
 import widgets
 
 if sys.platform == "win32":
@@ -128,7 +128,7 @@ try:
 except OSError:
     VERSION = "dev"
 
-HOME_PAGE = "https://kalkmancode.co.uk/beamer"
+HOME_PAGE = brand.REPOSITORY_URL
 HOME_PAGE_TEXT = N_("Beamer's website")
 
 STATUS_TITLES = {
@@ -197,7 +197,7 @@ def xwayland_effects_available() -> bool:
     return xwayland_available(platform_parts.WAYLAND, os.environ)
 
 
-ICON_PATH = asset_path("Beamer.ico")
+ICON_PATH = asset_path("Scotty.ico")
 
 # The OS parts keep their Windows names so the code and its tests read as before; on Linux they are
 # the X11 or the portal back ends (platform_parts).
@@ -752,7 +752,7 @@ class WindowsApplication(QWidget):
                 lambda: self.sender.toggle_shortcut() if not self.sender.redirecting else None,
             )
         if hasattr(platform_parts.injector, "on_problem"):
-            platform_parts.injector.on_problem = lambda sentence: self.bridge.alert.emit("Beamer", sentence)
+            platform_parts.injector.on_problem = lambda sentence: self.bridge.alert.emit(brand.NAME, sentence)
         if self.permission_state is not None and hasattr(platform_parts.injector, "on_permission"):
             platform_parts.injector.on_permission = lambda status, detail="", retryable=False: self.permission_state.report(
                 "remote", status, detail, retryable,
@@ -4610,7 +4610,7 @@ class WindowsApplication(QWidget):
                 remaining = bool(settings["peers"])
         except (ConfigError, OSError):
             LOGGER.exception("A machine could not be removed")
-            self._on_alert("Beamer", tr("Beamer could not save the removal. Try again in a moment."))
+            self._on_alert(brand.NAME, tr("Beamer could not save the removal. Try again in a moment."))
             return
         LOGGER.info("Removed %s from the paired machines",
                     peerlist.label_for([removed], token=token) or "a machine")
@@ -5222,7 +5222,7 @@ class WindowsApplication(QWidget):
             config = load_config(self.config_path, unpaired_ok=True)
         except (ConfigError, OSError) as exc:
             LOGGER.warning("Configuration not reloaded: %s", exc)
-            self._on_alert("Beamer", tr("Could not reload the configuration: {error}").format(error=exc))
+            self._on_alert(brand.NAME, tr("Could not reload the configuration: {error}").format(error=exc))
             return
         self._host = config.host
         self._paired = bool(self.book.peers())
@@ -5374,7 +5374,7 @@ class WindowsApplication(QWidget):
         can reach. A portal's error carries the whole sentence."""
         self.sender.set_redirecting(False)
         sentence = getattr(error, "sentence", None) or f"This machine's keyboard and mouse are no longer captured: {error}"
-        self.bridge.alert.emit("Beamer", sentence)
+        self.bridge.alert.emit(brand.NAME, sentence)
 
     def _on_hook_mouse(self, message: int, x: int, y: int, mouse_data: int) -> bool:
         """Every mouse message, on the hook thread: what Windows said becomes the sender's neutral
@@ -5589,7 +5589,11 @@ class WindowsApplication(QWidget):
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setText(tr(
             '<b>Beamer {version}</b><br>One keyboard and mouse for all your Macs and PCs.<br><br><a href="{url}" style="color: {colour};">{link}</a>'
-        ).format(version=VERSION, url=HOME_PAGE, colour=theme.colour("signal"), link=tr(HOME_PAGE_TEXT)))
+        ).format(version=brand.VERSION, url=HOME_PAGE, colour=theme.colour("signal"), link=tr(HOME_PAGE_TEXT))
+            + "<br><br>" + tr(
+            'Copied files and folders follow the pointer between Windows PCs. Based on Beamer {upstream} by {author}, '
+            'free software under the GNU GPL version 3. <a href="{url}" style="color: {colour};">Beamer\'s source</a>'
+        ).format(upstream=VERSION, author=brand.UPSTREAM_AUTHOR, url=brand.UPSTREAM_URL, colour=theme.colour("signal")))
         if portable_runtime.enabled():
             box.setInformativeText(tr("Portable — settings and pairing keys stay in this folder, protected by your passphrase. Administrator apps cannot be controlled."))
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -6145,7 +6149,7 @@ def main() -> None:
     instance_signal = quit_signals = application = controller_release = None
     try:
         app = QApplication(sys.argv)
-        app.setApplicationName("Beamer")
+        app.setApplicationName(brand.NAME)
         app.setDesktopFileName("uk.co.kalkman.beamer")
         app.setQuitOnLastWindowClosed(False)
         theme.init_fonts()

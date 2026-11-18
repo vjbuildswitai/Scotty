@@ -1776,7 +1776,7 @@ class Sidebar(QWidget):
             if rail:
                 from pathlib import Path
                 from PySide6.QtGui import QIcon
-                self.foot.setIcon(QIcon(str(Path(__file__).resolve().parent / "Beamer.ico")))
+                self.foot.setIcon(QIcon(str(Path(__file__).resolve().parent / "Scotty.ico")))
             else:
                 from PySide6.QtGui import QIcon
                 self.foot.setIcon(QIcon())

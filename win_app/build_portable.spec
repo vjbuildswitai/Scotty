@@ -9,7 +9,7 @@ analysis = Analysis(
     [str(source_dir / "portable_entry.py")],
     pathex=[str(source_dir), str(source_dir.parent)],
     binaries=[],
-    datas=[(str(source_dir / "Beamer.ico"), "."), (str(source_dir / "assets"), "assets"),
+    datas=[(str(source_dir / "Scotty.ico"), "."), (str(source_dir / "assets"), "assets"),
            (str(source_dir.parent / "VERSION"), "."),
            (str(source_dir / "identify_layer_shell.py"), ".")]
           + [(str(path), "locales") for path in (source_dir.parent / "locales").glob("*.po")],
@@ -45,7 +45,7 @@ executable = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(source_dir / "Beamer.ico"),
+    icon=str(source_dir / "Scotty.ico"),
     # The one-folder bootloader needs no temporary extraction or elevation.
     uac_admin=False,
     uac_uiaccess=False,

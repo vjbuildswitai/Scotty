@@ -32,7 +32,7 @@ analysis = Analysis(
     # The repo root, for core/, which both apps share.
     pathex=[str(source_dir), str(source_dir.parent)],
     binaries=[],
-    datas=[(str(source_dir / "Beamer.ico"), "."), (str(source_dir / "assets"), "assets"),
+    datas=[(str(source_dir / "Scotty.ico"), "."), (str(source_dir / "assets"), "assets"),
            (str(source_dir.parent / "VERSION"), "."),
            (str(source_dir / "identify_layer_shell.py"), ".")]
           + [(str(path), "locales") for path in (source_dir.parent / "locales").glob("*.po")],
@@ -77,7 +77,7 @@ executable = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(source_dir / "Beamer.ico"),
+    icon=str(source_dir / "Scotty.ico"),
     version=version_info,
     # Default launches stay ordinary; administrator control needs explicit per-PC consent.
     uac_admin=False,
