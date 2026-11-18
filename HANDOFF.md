@@ -44,18 +44,25 @@ Manifest on the input link + separate encrypted pull channel on TCP 24822; CF_HD
 Windows; `.part` writes renamed on completion; cap and drop folder in settings; capability-gated so
 stock Beamer/Mac peers are unaffected.
 
-## Status
-- Branch `file-transfer` created from `v1.5.21`; `FILES.md`, `CLAUDE.md`, `HANDOFF.md` added.
-  No feature code written yet.
-- Task list: (1) fork + attach, (2) protocol, (3) clipboard CF_HDROP, (4) side channel,
-  (5) app wiring + settings + toast, (6) build portable exe on the LOQ and test on both laptops.
+## Status (2026-11-19)
+- Built and pushed to https://github.com/vjbuildswitai/Scotty, branch `file-transfer`, working copy
+  `D:\Projects\Beamer` on the LOQ. Commits: design notes; protocol + capability; CF_HDROP clipboard;
+  file channel; app wiring (FilesBridge, progress panel, Files settings); installer firewall rule.
+- Tests pass on Linux and on the LOQ (Windows 11, Python 3.12, `win_app\.venv`). Upstream tests
+  that fail without changes: four that need old commits missing from GitHub (core), and a handful of
+  win_app modules that need a real Windows desktop when run on Linux.
+- Portable build works: `win_app\dist\portable\Beamer-Portable-1.5.21-windows-x64.zip`. A dev run
+  with a throwaway settings folder listened on TCP 24822. 1 GB over loopback: 6.1 s, identical.
+- Not yet done: the two-laptop test (needs the second laptop), renaming the app/exe to Scotty.
 
-## Continue from the PC
-```powershell
-cd C:\Users\Vijayaraj-Dev\Projects\beamer
-git status                       # the three .md files are uncommitted on branch file-transfer
-git remote add origin https://github.com/<your-account>/beamer.git
-git push -u origin file-transfer
-cd win_app; .\build_portable.ps1 # proves the stock app builds here before changing anything
-```
-Then open the folder in Claude Code; `CLAUDE.md` carries the rules and the work plan.
+## Test on both laptops
+1. Set Wi-Fi `KraftPanda` to **Private** on both laptops.
+2. Copy `Beamer-Portable-1.5.21-windows-x64.zip` to the second laptop, unzip both, run `Beamer.exe`,
+   choose a portable passphrase on each, allow the firewall prompt (Private).
+   Or install with `win_app\Install-Beamer.ps1` on each; it adds the 24822 rule.
+3. Pair with the six-digit code, arrange the screens.
+4. Copy a ~1 GB file in Explorer on laptop A, push the pointer across, Ctrl+V in a folder on B.
+   Watch the corner panel; keep moving the pointer: it must stay smooth. Then copy a folder on B,
+   cross back, Ctrl+V on A.
+5. Received files are in `Downloads\Scotty Drop\<date>`; size limit and folder are under
+   Overview → Files. Over 144 Mbps Wi-Fi expect about 10 MB/s.

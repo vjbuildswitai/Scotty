@@ -19,21 +19,39 @@ their own connection and never touch the input link except for a small manifest.
    and drops it outside a clipboard switch. `ticket` is 32 random bytes that only the paired peer
    sees, because the link is already encrypted. Names are checked so a received file can never
    land outside the drop folder (no `..`, no drive, no Windows device names).
-3. **Side channel** (core/filechannel.py): the sender listens on TCP 24822. The receiver connects,
-   sends the ticket, receives the full listing (relative paths and sizes), and pulls each entry. The stream is NaCl SecretBox-encrypted with a key derived
-   from the ticket, 1 MiB chunks, counter nonces, SHA-256 per file. Pull model: the receiver owns the
-   writes and can cancel.
-4. **Clipboard** (win_app/clipboard_win.py): read `CF_HDROP` via shell32 `DragQueryFileW`; write it
-   back by building a `DROPFILES` block (20-byte header, `fWide=1`, double-NUL UTF-16 list).
-5. **Drop folder**: files are written under `<drop>/<yyyy-mm-dd>/…` with `.part` names and renamed
-   on completion. When the transfer finishes, the top-level paths go onto the receiver's clipboard
-   as `CF_HDROP`, so Ctrl+V in Explorer pastes them. A toast shows progress and a Cancel.
-6. **Settings** (win_app/app_config.py + Overview page): `files.enabled` (on), `files.drop_folder`
-   (default `%USERPROFILE%\Downloads\Beamer Drop`), `files.max_bytes` (default 2 GiB, any value).
-   Over the cap: nothing is sent and the sender shows a toast saying so.
-7. **Tests**: protocol validators, DROPFILES encode/decode, chunk framing, and a loopback
-   end-to-end transfer that runs on Linux CI.
+3. **Side channel** (core/filechannel.py): the sender listens on TCP 24822. The receiver connects
+   and sends the transfer id and 32 random bytes; the sender answers with its own 32. Each
+   direction's key is HKDF-SHA256 over the ticket with both randoms as salt, so the ticket itself
+   never crosses this connection and no key is used twice. Frames are NaCl SecretBox with counter
+   nonces; file bytes go in 1 MiB frames. The receiver asks for the full listing (relative paths and
+   sizes) and then each file; the sender rechecks size and modified time before sending one, and
+   SHA-256 is compared per file. Pull model: the receiver owns the writes and can cancel. An offer
+   lasts 10 minutes and is served only to the address it was offered to.
+4. **Clipboard** (win_app/clipboard_win.py): `get_files()` / `set_files(paths)` read and write the
+   `CF_HDROP` block (20-byte `DROPFILES` header, `fWide=1`, double-NUL UTF-16 list), parsed and built
+   in pure Python rather than through `DragQueryFileW`, so it is tested off Windows. Cut (Ctrl+X) is
+   treated as copy: nothing is ever deleted on the sending PC.
+5. **Drop folder**: files arrive in `<drop>/.scotty-incoming/<transfer>/` (each file as `.part`
+   until its hash checks out), and only when everything arrived do the top-level items move to
+   `<drop>/<yyyy-mm-dd>/`, renamed "name (2)" if taken. A cancelled or failed transfer leaves
+   nothing. The landed paths go onto the receiver's clipboard as `CF_HDROP`, so Ctrl+V in Explorer
+   pastes them. A small panel in the corner shows progress, Cancel and Open folder.
+6. **App** (win_app/scotty_files.py `FilesBridge`, hooks in core/receiver.py, win_app/sender.py,
+   core/owner.py): the manifest goes out with the clipboard, both ways. The driven PC takes one only
+   from the PC driving it; the driving PC only from a PC it has just let go of, once, by the
+   clipboard's rule and window (owner `files_arrived`). A newer manifest cancels an older fetch.
+7. **Settings** (Overview page, Files; saved in `scotty.json` beside `settings.json` so profile
+   sync and migrations never touch them): on/off (on), drop folder (default
+   `%USERPROFILE%\Downloads\Scotty Drop`), largest transfer in GB (default 2, up to 1,000,000).
+   Over the cap: nothing is sent and the sender says so. `clipboard_files` is announced only while
+   the listener is up; switching files on or off reaches the other PC when the link next connects.
+8. **Firewall**: the installer adds `Scotty Files (TCP-In)`, TCP 24822, Private profile, for the exe.
+   A portable copy gets Windows' own Allow prompt the first time it listens.
+9. **Tests**: protocol validators, CF_HDROP codec and clipboard writes over fakes, loopback
+   end-to-end transfers including tampering, expiry and cancel (Linux and Windows), the bridge with
+   a real transfer, the owner and receiver hooks. 1 GB over loopback on the LOQ: 6.1 s, identical.
 
 ## Not in v1
 Mac/Linux senders or receivers, drag-and-drop across the edge, resume after a dropped link
-(the transfer restarts), transfers larger than the cap.
+(the transfer restarts), more than 64 top-level items in one copy (put them in a folder), files
+passed on through a chain of three machines, renaming the app and its exe from Beamer to Scotty.
