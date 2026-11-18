@@ -761,7 +761,7 @@ class WindowsApplication(QWidget):
         self._trigger = capture_win.Trigger()
         self._sending_detail = "Not connected"
         self.update_checker = updates.Checker(
-            VERSION, lambda: self._config is None or self._config.check_updates, self.bridge.update.emit,
+            brand.VERSION, lambda: self._config is None or self._config.check_updates, self.bridge.update.emit,
             logger=LOGGER, portable=portable_runtime.enabled(),
             on_check=self.bridge.update_check.emit,
         )
@@ -846,7 +846,7 @@ class WindowsApplication(QWidget):
         row_layout.setSpacing(0)
 
         self.sidebar = widgets.Sidebar(
-            pages_win.PAGES, self._select_page, foot=tr("Beamer {version}\n{link}").format(version=VERSION, link=tr(HOME_PAGE_TEXT)), on_foot=self.open_home_page,
+            pages_win.PAGES, self._select_page, foot=tr("Beamer {version}\n{link}").format(version=brand.VERSION, link=tr(HOME_PAGE_TEXT)), on_foot=self.open_home_page,
             foot_tip=HOME_PAGE,
         )
         self.sidebar.setFixedWidth(theme.SIDEBAR_WIDTH)
@@ -1320,13 +1320,13 @@ class WindowsApplication(QWidget):
         except (ConfigError, OSError):
             LOGGER.exception("Update notice settings could not be read")
             self.update_notice.hide()
-            self.header_action.setText(tr("Beamer {version}").format(version=VERSION))
+            self.header_action.setText(tr("Beamer {version}").format(version=brand.VERSION))
             self.header_action.setEnabled(False)
             return
         found = updates.visible_notice(self._update, self._config is not None and self._config.check_updates,
                                        settings.get("dismissed_update_version", ""),
                                        requested=getattr(self, "_manual_update", False))
-        self.header_action.setText(tr("Beamer {version} is available…").format(version=found[0]) if found else tr("Beamer {version}").format(version=VERSION))
+        self.header_action.setText(tr("Beamer {version} is available…").format(version=found[0]) if found else tr("Beamer {version}").format(version=brand.VERSION))
         self.header_action.setEnabled(found is not None and not portal.sandboxed())
         if found:
             text = tr("Beamer {version} is available.").format(version=found[0])
@@ -5145,7 +5145,7 @@ class WindowsApplication(QWidget):
         self.status_action.setEnabled(False)
         menu.addSeparator()
         # The version line; it becomes the way to a newer release when there is one.
-        self.header_action = menu.addAction(tr("Beamer {version}").format(version=VERSION))
+        self.header_action = menu.addAction(tr("Beamer {version}").format(version=brand.VERSION))
         self.header_action.setEnabled(False)
         self.header_action.triggered.connect(self.open_update)
         menu.addSeparator()

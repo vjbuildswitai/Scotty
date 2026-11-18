@@ -1,4 +1,4 @@
-"""Whether a newer Beamer has been released, for both apps.
+"""Whether a newer Scotty has been released (fork: its own releases, not upstream Beamer's).
 
 One HTTPS request to GitHub's public releases API at startup and once a day while automatic
 checks are on, or on an explicit check. All newer releases appear on the Updates page. Only
@@ -14,8 +14,11 @@ import sys
 import threading
 from typing import NamedTuple
 
-LATEST_URL = "https://api.github.com/repos/kalkman-code/beamer/releases/latest"
-RELEASES_PAGE = "https://github.com/kalkman-code/beamer/releases/latest"
+from core import brand
+
+LATEST_URL = f"https://api.github.com/repos/{brand.REPOSITORY}/releases/latest"
+RELEASES_PAGE = f"{brand.RELEASES_URL}/latest"
+_RELEASE_PREFIX = f"{brand.REPOSITORY_URL}/".lower()
 CHECK_EVERY_SECONDS = 24 * 60 * 60
 TIMEOUT_SECONDS = 10.0
 MAX_BYTES = 256 * 1024
@@ -61,11 +64,11 @@ def newer_release(current, payload):
     if theirs < ours or (theirs == ours and not beta):
         return None
     url = payload.get("html_url")
-    if not isinstance(url, str) or not url.startswith("https://github.com/kalkman-code/beamer/"):
+    if not isinstance(url, str) or not url.lower().startswith(_RELEASE_PREFIX):
         url = RELEASES_PAGE
     body = payload.get("body")
     important = isinstance(body, str) and any(
-        line.strip() == "<!-- beamer-notify: important -->" for line in body.splitlines())
+        line.strip() in ("<!-- scotty-notify: important -->", "<!-- beamer-notify: important -->") for line in body.splitlines())
     return Release(str(tag).lstrip("v"), url, important or theirs[:2] > ours[:2])
 
 
@@ -79,8 +82,8 @@ def visible_notice(found, enabled, dismissed, requested=False):
 
 
 def _portable_download(version, payload):
-    name = f"Beamer-Portable-{version}-windows-x64.zip"
-    url = f"https://github.com/kalkman-code/beamer/releases/download/v{version}/{name}"
+    name = f"Scotty-Portable-{version}-windows-x64.zip"
+    url = f"{brand.REPOSITORY_URL}/releases/download/v{version}/{name}"
     assets = payload.get("assets")
     if isinstance(assets, list):
         for asset in assets:
