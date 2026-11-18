@@ -487,6 +487,7 @@ Capabilities say what a machine does with a message it receives:
 | `layout` | with `settings`, it sends and receives the shared tile picture (`settings.data.layout`) |
 | `displays` | with `layout`, it sends and receives each machine's logical display rectangles and display-targeted edges |
 | `ping_rtt` | it sends and answers response-time probes on `ping` in both directions |
+| `clipboard_files` | fork (Scotty): it takes the `files` manifest and fetches the files it names (section 11) |
 
 A sender does not send a message its peer's capabilities do not cover. A receiver that gets one
 anyway drops it, and still acknowledges it when it carries a `seq`.
@@ -1550,6 +1551,39 @@ keep the display grouped, and dragging the machine moves the group together. A r
 malformed `layout` as a whole. Peers without `displays` receive the same machine tiles without the
 nested display map or its offsets.
 Beamer 1.5.0 to 1.5.2 ignore this unknown optional member and keep their existing Crossing page.
+
+## 11. Files (fork)
+
+This section belongs to the Scotty fork, not to upstream Beamer. Nothing above changes: a peer
+that does not announce `clipboard_files` (stock Beamer, the Mac app, a phone) never receives
+`files`, and a receiver that gets one anyway drops it.
+
+`files` goes either way, on the same link and at the same moment as `clipboard` (section 5, The
+clipboard follows the input), when the sender's clipboard holds copied files or folders:
+
+| Field | |
+|---|---|
+| `transfer` | 16 random bytes, `b64`, fresh per manifest: names this transfer |
+| `ticket` | 32 random bytes, `b64`, fresh per manifest: opens the file channel for this transfer only. It is safe on the link because the link is encrypted to the paired peer |
+| `port` | integer 1 to 65535: the TCP port the sender's file channel listens on, 24822 by default |
+| `names` | 1 to 64 top-level names, as the receiver's clipboard will hold them, at most 16 KiB of UTF-8 in all, none equal to another ignoring case |
+| `count` | integer 0 to 100,000: how many files sit under `names` (a folder with nothing in it counts none) |
+| `total_bytes` | integer 0 to 2^53 - 1: their sizes added up |
+
+A name is 1 to 255 characters with no control character or any of `<>:"/\|?*`, is not `.` or
+`..`, does not end in a dot or a space, and is not a Windows device name (`CON`, `PRN`, `AUX`,
+`NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, also with superscript digits), with or without an
+extension. Paths inside the transfer are such names joined by `/`. A manifest that breaks any
+rule is dropped whole and nothing is fetched.
+
+The manifest is a summary, so it always stays far under the 64 KiB a link treats as a large frame
+and never holds up input. The full listing, every file's path and size, and the bytes come over the
+file channel: the receiver connects to the sender's address on `port`, presents the ticket, and
+pulls. The sender keeps a ticket for 10 minutes, or until a newer manifest replaces it, then
+refuses it. The file channel's framing is described in FILES.md.
+
+A receiver over its own size limit (`files.max_bytes`, 2 GiB by default) fetches nothing and says
+so; the sender checks its own limit first and sends no manifest over it.
 
 ## Versions
 

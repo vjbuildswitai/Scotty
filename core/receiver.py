@@ -422,6 +422,8 @@ class _Link:
                 return False
             if message.get("type") == protocol.MSG_IDENTIFY_SCREENS and "identify_screens" not in self.caps:
                 return True
+            if message.get("type") == protocol.MSG_FILES and protocol.CAP_CLIPBOARD_FILES not in self.caps:
+                return True
             if len(self.outbox) >= OUTBOX_LIMIT:
                 LOGGER.warning("%s stopped reading; closing its link", self.name)
                 self._close_locked()
