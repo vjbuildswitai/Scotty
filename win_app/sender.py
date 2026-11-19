@@ -947,22 +947,32 @@ class LinkSender:
 
     # -- Fork (Scotty): head turn -------------------------------------------
 
+    last_key_at = float("-inf")  # class default too, for senders built without __init__
+
+    def _held_keys(self) -> set:
+        # Tests build senders without __init__; the set is made on first use there.
+        keys = self.__dict__.get("_head_keys_held")
+        if keys is None:
+            keys = self._head_keys_held = set()
+        return keys
+
     def _note_head_key(self, held, down: bool) -> None:
         if down:
-            self._head_keys_held.add(held)
-            self.last_key_at = self._clock()
+            self._held_keys().add(held)
+            self.last_key_at = self.now()
         else:
-            self._head_keys_held.discard(held)
+            self._held_keys().discard(held)
 
     def now(self) -> float:
-        """The clock key times are read on."""
-        return self._clock()
+        """The clock key times are read on (the monotonic clock on senders built without __init__)."""
+        clock = self.__dict__.get("_clock")
+        return clock() if clock is not None else time.monotonic()
 
     def input_busy(self) -> bool:
         """Any key or mouse button held down on this PC right now. A held key auto-repeats, so a
         key 'held' with no press for 2 s is a release the hook missed and does not count."""
-        keys = bool(self._head_keys_held) and self._clock() - self.last_key_at < 2.0
-        return keys or bool(self._buttons_held)
+        keys = bool(self._held_keys()) and self.now() - self.last_key_at < 2.0
+        return keys or bool(getattr(self, "_buttons_held", ()))
 
     def look_at(self, peer: Optional[bytes]) -> bool:
         """Head turn: move input to `peer`, or home for None, exactly as the jump shortcut does.

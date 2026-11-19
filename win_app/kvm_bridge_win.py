@@ -5578,7 +5578,9 @@ class WindowsApplication(QWidget):
             self._sending_detail = f"This PC's keyboard could not be captured: {exc}"
             return
         self.sender.start(config)
-        self._apply_headturn()
+        apply_headturn = getattr(self, "_apply_headturn", None)  # absent on test stand-ins
+        if apply_headturn is not None:
+            apply_headturn()
 
     def _capture_stopped(self, error: BaseException) -> None:
         """On the capture thread, when capture ended on its own (the X server gone, a stalled
