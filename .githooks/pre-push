@@ -1,0 +1,11 @@
+#!/bin/sh
+# SDLC guard: blocks pushes to protected branches without VJ's OK (logic: .sdlc/guard.js), then runs the repo's own pre-push.
+ROOT="$(git rev-parse --show-toplevel)"
+INPUT="$(cat)"
+if command -v node >/dev/null 2>&1; then
+  printf '%s\n' "$INPUT" | node "$ROOT/.sdlc/guard.js" pre-push || exit $?
+else
+  echo "[sdlc-guard] node not found - pre-push checks skipped" >&2
+fi
+. "$ROOT/.githooks/_chain"
+printf '%s\n' "$INPUT" | sdlc_chain pre-push "$@"

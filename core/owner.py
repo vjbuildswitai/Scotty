@@ -144,6 +144,7 @@ class Owner:
         self._swallow = set()               # presses whose physical release goes nowhere
         self._here = set()                  # presses let through here, whose release is let through too
         self._let_go = {}                   # peer: when it was let go, for its one clipboard
+        self._files_let_go = {}             # fork (Scotty): the same, for its one `files` manifest
         self._clipboard_at = set()          # peers known to hold this machine's clipboard as it is
 
     @property
@@ -387,6 +388,17 @@ class Owner:
         let_go = self._let_go.get(peer)
         return let_go is not None and 0 <= began - let_go <= CLIPBOARD_AFTER
 
+    def files_arrived(self, peer, began):
+        """Fork (Scotty): whether a `files` manifest from `peer` that began at `began` is the one
+        a machine may send as it is let go, by the same rule and window as its clipboard; taking
+        it uses it up. Kept apart from the clipboard's, so the text and the files of one let-go
+        are both taken whichever comes first."""
+        let_go = self._files_let_go.get(peer)
+        if let_go is None or not 0 <= began - let_go <= CLIPBOARD_AFTER:
+            return False
+        del self._files_let_go[peer]
+        return True
+
     def _clipboard_to(self, peer):
         if peer in self._clipboard_at:
             return []
@@ -421,7 +433,7 @@ class Owner:
         """The owner's releases of everything it pressed there, then the let-go `focus`."""
         pressed = self._pressed.pop(peer, {})
         self._swallow.update(pressed)
-        self._let_go[peer] = self._clock()
+        self._let_go[peer] = self._files_let_go[peer] = self._clock()
         return [Send(peer, release) for release in pressed.values()] + [
             Send(peer, {"type": "focus", "data": {"route": self.route, "target": target}})]
 

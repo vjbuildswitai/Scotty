@@ -14,8 +14,8 @@ MAINTENANCE = WIN_APP / "Install-Maintenance.ps1"
 
 class InstallerMaintenanceContractTests(unittest.TestCase):
     def test_both_installers_use_one_narrow_maintenance_entry_point(self):
-        setup = (WIN_APP / "Beamer-Setup.iss").read_text(encoding="utf-8")
-        install = (WIN_APP / "Install-Beamer.ps1").read_text(encoding="utf-8")
+        setup = (WIN_APP / "Scotty-Setup.iss").read_text(encoding="utf-8")
+        install = (WIN_APP / "Install-Scotty.ps1").read_text(encoding="utf-8")
         self.assertTrue(MAINTENANCE.is_file(), "The installer-owned maintenance script is missing")
         for source in (setup, install):
             self.assertIn("Invoke-InstallMaintenance.ps1", source)
@@ -69,15 +69,15 @@ $script:registered = @()
 function Get-BeamerAdministratorPreference($UserSid) { return $true }
 function Resolve-BeamerUserSid($Identity) { return $Identity }
 function Get-ScheduledTask { param($TaskPath, $ErrorAction)
-    return @([pscustomobject]@{ TaskName='Beamer-owner'; TaskPath='\' })
+    return @([pscustomobject]@{ TaskName='Scotty-owner'; TaskPath='\' })
 }
 function Export-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction)
-    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>false</Enabled></LogonTrigger></Triggers><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals><Settings><Enabled>false</Enabled></Settings><Actions><Exec><Command>C:\Beamer\Beamer.exe</Command><Arguments>--hidden --keep-this</Arguments></Exec></Actions></Task>'
+    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>false</Enabled></LogonTrigger></Triggers><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals><Settings><Enabled>false</Enabled></Settings><Actions><Exec><Command>C:\Beamer\Scotty.exe</Command><Arguments>--hidden --keep-this</Arguments></Exec></Actions></Task>'
 }
 function Register-ScheduledTask { param($TaskName, $TaskPath, $Xml, [switch]$Force, $ErrorAction)
     $script:registered += $Xml
 }
-Update-BeamerAutostart -ExePath 'C:\Beamer\Beamer.exe' -UserSid 'S-1-5-21-123'
+Update-BeamerAutostart -ExePath 'C:\Beamer\Scotty.exe' -UserSid 'S-1-5-21-123'
 if ($script:registered.Count) { throw 'Upgrade rewrote an opted-in administrator task' }
 ''')
 
@@ -87,32 +87,32 @@ $script:registered = @()
 function Get-BeamerAdministratorPreference($UserSid) { return $false }
 function Resolve-BeamerUserSid($Identity) { return $Identity }
 function Get-ScheduledTask { param($TaskPath, $ErrorAction)
-    return @([pscustomobject]@{ TaskName='Beamer-owner'; TaskPath='\' })
+    return @([pscustomobject]@{ TaskName='Scotty-owner'; TaskPath='\' })
 }
 function Export-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction)
-    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals><Actions><Exec><Command>C:\Beamer\Beamer.exe</Command></Exec></Actions></Task>'
+    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals><Actions><Exec><Command>C:\Beamer\Scotty.exe</Command></Exec></Actions></Task>'
 }
 function Register-ScheduledTask { param($TaskName, $TaskPath, $Xml, [switch]$Force, $ErrorAction)
     $script:registered += $Xml
 }
-Update-BeamerAutostart -ExePath 'C:\Beamer\Beamer.exe' -UserSid 'S-1-5-21-123'
+Update-BeamerAutostart -ExePath 'C:\Beamer\Scotty.exe' -UserSid 'S-1-5-21-123'
 if ($script:registered.Count) { throw 'Upgrade rewrote the existing default-privilege task' }
 ''')
 
     def test_upgrade_materialises_omitted_runlevel_only_for_administrator_preference(self):
         self.run_probe(r'''
 $script:registered = @()
-$script:original = '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>false</Enabled></LogonTrigger></Triggers><Principals><Principal id="Author"><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals><Settings><Enabled>false</Enabled></Settings><Actions Context="Author"><Exec><Command>C:\Beamer\Beamer.exe</Command><Arguments>--hidden --keep-this</Arguments></Exec></Actions></Task>'
+$script:original = '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>false</Enabled></LogonTrigger></Triggers><Principals><Principal id="Author"><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals><Settings><Enabled>false</Enabled></Settings><Actions Context="Author"><Exec><Command>C:\Beamer\Scotty.exe</Command><Arguments>--hidden --keep-this</Arguments></Exec></Actions></Task>'
 function Get-BeamerAdministratorPreference($UserSid) { return $true }
 function Resolve-BeamerUserSid($Identity) { return $Identity }
 function Get-ScheduledTask { param($TaskPath, $ErrorAction)
-    return @([pscustomobject]@{ TaskName='Beamer-owner'; TaskPath='\' })
+    return @([pscustomobject]@{ TaskName='Scotty-owner'; TaskPath='\' })
 }
 function Export-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction) return $script:original }
 function Register-ScheduledTask { param($TaskName, $TaskPath, $Xml, [switch]$Force, $ErrorAction)
     $script:registered += $Xml
 }
-Update-BeamerAutostart -ExePath 'C:\Beamer\Beamer.exe' -UserSid 'S-1-5-21-123'
+Update-BeamerAutostart -ExePath 'C:\Beamer\Scotty.exe' -UserSid 'S-1-5-21-123'
 if ($script:registered.Count -ne 1) { throw 'Expected exactly one administrator task update' }
 [xml]$actual = $script:registered[0]
 $ns = New-Object Xml.XmlNamespaceManager($actual.NameTable)
@@ -166,7 +166,7 @@ function New-Object { param($ComObject)
 Update-BeamerGameInputRecovery
 if ($script:registrations.Count -ne 1) { throw 'Expected exactly one task registration' }
 $registration = $script:registrations[0]
-if ($registration.Name -ne 'Beamer-GameInputRecovery') { throw 'Recovery task name is not fixed' }
+if ($registration.Name -ne 'Scotty-GameInputRecovery') { throw 'Recovery task name is not fixed' }
 if ($registration.UserId -ne 'S-1-5-18' -or $registration.Password -or $registration.LogonType -ne 5) { throw 'Recovery must run as SYSTEM without a password' }
 if ($script:definition.Principal.UserId -ne 'S-1-5-18' -or $script:definition.Principal.LogonType -ne 5) { throw 'Task principal disagrees with registration' }
 if (($registration.Flags -band 6) -ne 6) { throw 'Reinstall must replace the task definition' }
@@ -197,7 +197,7 @@ $script:removed = @()
 $script:present = $true
 function New-Object { throw 'Uninstall must not create a task definition' }
 function Get-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction)
-    if ($TaskName -ne 'Beamer-GameInputRecovery' -or $TaskPath -ne '\') { throw 'Uninstall queried unrelated tasks' }
+    if ($TaskName -ne 'Scotty-GameInputRecovery' -or $TaskPath -ne '\') { throw 'Uninstall queried unrelated tasks' }
     if ($script:present) { return [pscustomobject]@{ TaskName=$TaskName; TaskPath=$TaskPath } }
 }
 function Unregister-ScheduledTask { param($TaskName, $TaskPath, $Confirm, $ErrorAction)
@@ -206,7 +206,7 @@ function Unregister-ScheduledTask { param($TaskName, $TaskPath, $Confirm, $Error
 }
 Update-BeamerGameInputRecovery -Remove
 Update-BeamerGameInputRecovery -Remove
-if ($script:removed.Count -ne 1 -or $script:removed[0].Name -ne 'Beamer-GameInputRecovery' -or $script:removed[0].Path -ne '\') { throw 'Uninstall removed another task or failed when already absent' }
+if ($script:removed.Count -ne 1 -or $script:removed[0].Name -ne 'Scotty-GameInputRecovery' -or $script:removed[0].Path -ne '\') { throw 'Uninstall removed another task or failed when already absent' }
 ''')
 
     def test_migration_preserves_choices_and_ignores_other_users_and_actions(self):
@@ -222,20 +222,20 @@ function Register-ScheduledTask { param($TaskName, $TaskPath, $Xml, [switch]$For
     $script:registered += [pscustomobject]@{ Name = $TaskName; Xml = $Xml }
 }
 $template = '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>false</Enabled><UserId>S-1-5-21-123</UserId></LogonTrigger></Triggers><Principals><Principal id="Author"><UserId>{0}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals><Settings><Enabled>false</Enabled><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings><Actions Context="Author"><Exec><Command>{1}</Command><Arguments>--hidden --keep-this</Arguments><WorkingDirectory>C:\A &amp; B</WorkingDirectory></Exec>{2}</Actions></Task>'
-$script:fixtures['Beamer'] = $template -f 'S-1-5-21-123', 'C:\A &amp; B\Beamer.exe', ''
-$script:fixtures['Beamer-other-user'] = $template -f 'S-1-5-21-999', 'C:\A &amp; B\Beamer.exe', ''
-$script:fixtures['Beamer-other-exe'] = $template -f 'S-1-5-21-123', 'C:\Other\Beamer.exe', ''
-$script:fixtures['Beamer-extra-action'] = $template -f 'S-1-5-21-123', 'C:\A &amp; B\Beamer.exe', '<Exec><Command>C:\Other.exe</Command></Exec>'
-$script:fixtures['Unrelated'] = $script:fixtures['Beamer']
-Update-BeamerAutostart -ExePath 'C:\A & B\Beamer.exe' -UserSid 'S-1-5-21-123'
-if ($script:registered.Count -ne 1 -or $script:registered[0].Name -ne 'Beamer') { throw 'Changed an unrelated task or missed the matching task' }
-$expected = $script:fixtures['Beamer'].Replace('HighestAvailable', 'LeastPrivilege')
+$script:fixtures['Scotty'] = $template -f 'S-1-5-21-123', 'C:\A &amp; B\Scotty.exe', ''
+$script:fixtures['Scotty-other-user'] = $template -f 'S-1-5-21-999', 'C:\A &amp; B\Scotty.exe', ''
+$script:fixtures['Scotty-other-exe'] = $template -f 'S-1-5-21-123', 'C:\Other\Scotty.exe', ''
+$script:fixtures['Scotty-extra-action'] = $template -f 'S-1-5-21-123', 'C:\A &amp; B\Scotty.exe', '<Exec><Command>C:\Other.exe</Command></Exec>'
+$script:fixtures['Unrelated'] = $script:fixtures['Scotty']
+Update-BeamerAutostart -ExePath 'C:\A & B\Scotty.exe' -UserSid 'S-1-5-21-123'
+if ($script:registered.Count -ne 1 -or $script:registered[0].Name -ne 'Scotty') { throw 'Changed an unrelated task or missed the matching task' }
+$expected = $script:fixtures['Scotty'].Replace('HighestAvailable', 'LeastPrivilege')
 [xml]$actual = $script:registered[0].Xml
 [xml]$wanted = $expected
 if ($actual.OuterXml -ne $wanted.OuterXml) { throw 'Migration changed existing user choices' }
 $script:registered = @()
 $script:fixtures = @{}
-Update-BeamerAutostart -ExePath 'C:\A & B\Beamer.exe' -UserSid 'S-1-5-21-123'
+Update-BeamerAutostart -ExePath 'C:\A & B\Scotty.exe' -UserSid 'S-1-5-21-123'
 if ($script:registered.Count) { throw 'Created startup when no task exists' }
 ''')
 
@@ -250,11 +250,11 @@ function New-NetFirewallRule { param($DisplayName, $Direction, $Protocol, $Local
 }
 function Get-Service { param($Name, $ErrorAction) return $null }
 function Restart-Service { param($Name, [switch]$Force, $ErrorAction) $script:restarted += $Name }
-Repair-BeamerFirewall -ExePath 'C:\A & B\Beamer.exe'
+Repair-BeamerFirewall -ExePath 'C:\A & B\Scotty.exe'
 Repair-BeamerGameInput
-if ($script:rules.Count -ne 3) { throw 'Expected exactly three firewall rules' }
-if (@($script:rules | Where-Object { $_.Profile -ne 'Private' -or $_.Program -ne 'C:\A & B\Beamer.exe' }).Count) { throw 'Rule scope broadened' }
-if (($script:rules | ForEach-Object { "$($_.Protocol):$($_.Port)" }) -join ',' -ne 'TCP:24820,UDP:24821,TCP:24821') { throw 'Unexpected ports or protocols' }
+if ($script:rules.Count -ne 4) { throw 'Expected exactly four firewall rules (three Beamer, one Scotty)' }
+if (@($script:rules | Where-Object { $_.Profile -ne 'Private' -or $_.Program -ne 'C:\A & B\Scotty.exe' }).Count) { throw 'Rule scope broadened' }
+if (($script:rules | ForEach-Object { "$($_.Protocol):$($_.Port)" }) -join ',' -ne 'TCP:24820,UDP:24821,TCP:24821,TCP:24822') { throw 'Unexpected ports or protocols' }
 if ($script:restarted.Count) { throw 'Restarted absent GameInput service' }
 function Get-Service { param($Name, $ErrorAction) return [pscustomobject]@{ Name='GameInputSvc' } }
 Repair-BeamerGameInput
@@ -266,22 +266,22 @@ if ($script:restarted.Count -ne 1 -or $script:restarted[0] -ne 'GameInputSvc') {
 $script:removedTasks = @()
 $script:removedRules = @()
 function Resolve-BeamerUserSid($Identity) { return $Identity }
-function Get-ScheduledTask { param($TaskPath, $ErrorAction) return [pscustomobject]@{ TaskName='Beamer'; TaskPath='\' } }
+function Get-ScheduledTask { param($TaskPath, $ErrorAction) return [pscustomobject]@{ TaskName='Scotty'; TaskPath='\' } }
 function Export-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction)
-    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Actions><Exec><Command>C:\Beamer\Beamer.exe</Command></Exec></Actions></Task>'
+    return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Actions><Exec><Command>C:\Beamer\Scotty.exe</Command></Exec></Actions></Task>'
 }
 function Unregister-ScheduledTask { param($TaskName, $TaskPath, $Confirm, $ErrorAction) $script:removedTasks += $TaskName }
 function Get-NetFirewallRule { param($DisplayName, $ErrorAction)
     return @([pscustomobject]@{ Name='ours' }, [pscustomobject]@{ Name='other-install' })
 }
 function Get-NetFirewallApplicationFilter { param([Parameter(ValueFromPipeline=$true)]$InputObject)
-    process { if ($InputObject.Name -eq 'ours') { [pscustomobject]@{ Program='C:\Beamer\Beamer.exe' } } else { [pscustomobject]@{ Program='C:\Other\Beamer.exe' } } }
+    process { if ($InputObject.Name -eq 'ours') { [pscustomobject]@{ Program='C:\Beamer\Scotty.exe' } } else { [pscustomobject]@{ Program='C:\Other\Scotty.exe' } } }
 }
 function Remove-NetFirewallRule { param([Parameter(ValueFromPipeline=$true)]$InputObject) process { $script:removedRules += $InputObject.Name } }
-Update-BeamerAutostart -ExePath 'C:\Beamer\Beamer.exe' -UserSid 'S-1-5-21-123' -Remove
-Remove-BeamerFirewall -ExePath 'C:\Beamer\Beamer.exe'
-if ($script:removedTasks.Count -ne 1 -or $script:removedTasks[0] -ne 'Beamer') { throw 'Matching task was not removed' }
-if ($script:removedRules.Count -ne 3 -or @($script:removedRules | Where-Object { $_ -ne 'ours' }).Count) { throw 'Removed another install firewall rule' }
+Update-BeamerAutostart -ExePath 'C:\Beamer\Scotty.exe' -UserSid 'S-1-5-21-123' -Remove
+Remove-BeamerFirewall -ExePath 'C:\Beamer\Scotty.exe'
+if ($script:removedTasks.Count -ne 1 -or $script:removedTasks[0] -ne 'Scotty') { throw 'Matching task was not removed' }
+if ($script:removedRules.Count -ne 4 -or @($script:removedRules | Where-Object { $_ -ne 'ours' }).Count) { throw 'Removed another install firewall rule' }
 ''')
 
 
@@ -336,7 +336,7 @@ $ErrorActionPreference = 'Stop'
     def test_file_handoff_keeps_metacharacters_sid_and_remove_literal(self):
         with tempfile.TemporaryDirectory(prefix="ADMIN2 launcher ' & $(1+1) ; ", dir=WIN_APP.parent) as directory:
             launcher = self.prepare_launcher(directory)
-            exe = str(Path(directory) / "Receiver ' & $(2+2) ; literal" / "Beamer.exe")
+            exe = str(Path(directory) / "Receiver ' & $(2+2) ; literal" / "Scotty.exe")
             for remove in (False, True):
                 with self.subTest(remove=remove):
                     result = self.run_file(launcher, "-ExePath", exe, *(["-Remove"] if remove else []))
@@ -350,7 +350,7 @@ $ErrorActionPreference = 'Stop'
             driver = Path(directory) / "invoke-invalid.ps1"
             driver.write_text(r'''
 $ErrorActionPreference = 'Stop'
-$badPath = $PSScriptRoot + '\bad"argument\Beamer.exe'
+$badPath = $PSScriptRoot + '\bad"argument\Scotty.exe'
 & (Join-Path $PSScriptRoot 'Invoke-InstallMaintenance.ps1') -ExePath $badPath
 exit $LASTEXITCODE
 ''', encoding="utf-8-sig")

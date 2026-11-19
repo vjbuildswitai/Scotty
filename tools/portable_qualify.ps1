@@ -14,9 +14,9 @@ $Zip = (Resolve-Path $Zip).Path
 New-Item -ItemType Directory -Path $AcceptanceDirectory | Out-Null
 $Extracted = Join-Path $AcceptanceDirectory 'extracted'
 Expand-Archive -Path $Zip -DestinationPath $Extracted
-$Payload = Join-Path $Extracted 'Beamer-portable'
-$Executable = Join-Path $Payload 'Beamer.exe'
-if (-not (Test-Path $Executable) -or -not (Test-Path (Join-Path $Payload 'Beamer.portable'))) { throw 'The zip is not a Beamer portable payload' }
+$Payload = Join-Path $Extracted 'Scotty-portable'
+$Executable = Join-Path $Payload 'Scotty.exe'
+if (-not (Test-Path $Executable) -or -not (Test-Path (Join-Path $Payload 'Scotty.portable'))) { throw 'The zip is not a Beamer portable payload' }
 if (Test-Path (Join-Path $Payload 'data')) { throw 'The zip contains user data; qualification requires an empty payload' }
 Copy-Item (Join-Path $ScriptDir 'portable_acceptance.py') (Join-Path $Payload 'portable_acceptance.py')
 New-Item -ItemType Directory -Path (Join-Path $Payload 'data') | Out-Null
@@ -217,10 +217,10 @@ function Get-HostSnapshot {
     $RunKey = $null
     try {
         $RunKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run', $false)
-        if ($null -eq $RunKey -or $RunKey.GetValueNames() -notcontains 'Beamer') {
+        if ($null -eq $RunKey -or $RunKey.GetValueNames() -notcontains 'Scotty') {
             $Items['registry:run-beamer'] = 'absent'
         } else {
-            $RunValue = @($RunKey.GetValueKind('Beamer').ToString(), $RunKey.GetValue('Beamer', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames))
+            $RunValue = @($RunKey.GetValueKind('Scotty').ToString(), $RunKey.GetValue('Scotty', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames))
             $Items['registry:run-beamer'] = Get-TextHash (ConvertTo-Json -InputObject $RunValue -Compress)
         }
     } catch { $Errors.Add('Run registry snapshot unavailable: ' + $_.Exception.GetType().Name) }

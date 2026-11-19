@@ -27,7 +27,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from core import ignored
+from core import brand, ignored
 from core import keytable
 from core import owner as owner_module
 from core import peerlist
@@ -247,6 +247,8 @@ class LinkSender:
         self.arrangement_callback: Optional[Callable] = None
         self.settings_callback: Optional[Callable] = None
         self.identify_callback: Optional[Callable] = None
+        # Fork (Scotty): the files bridge (outgoing(host), incoming(host, read)), set by the app.
+        self.files = None
         self.paired_callback: Optional[Callable] = None
         self.link_callback: Optional[Callable[[bytes, bool], None]] = None
 
@@ -1060,6 +1062,14 @@ class LinkSender:
                     actions = self._owner.clipboard_arrived(peer, began_at if began_at is not None else self._clock(), clean)
                     self._queue(actions)
                 self._report(actions)
+        elif kind == protocol.MSG_FILES:
+            read = protocol.read_files(message)
+            files = self.files
+            if read is not None and files is not None and protocol.CAP_CLIPBOARD_FILES in self.links.caps(peer):
+                with self._lock:
+                    taken = self._owner.files_arrived(peer, began_at if began_at is not None else self._clock())
+                if taken:
+                    self._call(files.incoming, self.links.host(peer), read)
         elif kind == protocol.MSG_ARRANGEMENT:
             read = protocol.read_arrangement_v6(message, time.time())
             if read is not None and self.arrangement_callback is not None:
@@ -1464,9 +1474,21 @@ class LinkSender:
             text = None
         if "clipboard_image" not in caps:
             image = None
-        if not text and image is None:
+        manifest = None
+        files = self.files
+        if files is not None and protocol.CAP_CLIPBOARD_FILES in caps:
+            try:
+                manifest = files.outgoing(self.links.host(peer))
+            except Exception:
+                LOGGER.exception("Could not offer the copied files to %s", self._name(peer))
+        if not text and image is None and manifest is None:
             return None
-        return self.links.post(peer, protocol.clipboard_msg(text or None, image))
+        posted = True
+        if text or image is not None:
+            posted = self.links.post(peer, protocol.clipboard_msg(text or None, image))
+        if manifest is not None:
+            posted = self.links.post(peer, manifest) and posted
+        return posted
 
     def _set_clipboard(self, message: dict) -> None:
         read = protocol.read_clipboard(message)
@@ -1713,7 +1735,7 @@ class LinkSender:
         if self.on_alert is None:
             return
         try:
-            self.on_alert("Beamer", message)
+            self.on_alert(brand.NAME, message)
         except Exception:
             LOGGER.exception("Alert callback failed")
 
@@ -1880,6 +1902,11 @@ class LinkSet:
     def caps(self, peer) -> frozenset:
         link = self._link(peer)
         return link.caps if link is not None else frozenset()
+
+    def host(self, peer):
+        """Fork (Scotty): the address this PC's link to `peer` dialled, or None."""
+        link = self._link(peer)
+        return getattr(link, "_dialled_to", None) if link is not None else None
 
     def post(self, peer, message) -> bool:
         link = self._link(peer)

@@ -13,12 +13,12 @@ version_info = VSVersionInfo(
     ffi=FixedFileInfo(filevers=numeric_version, prodvers=numeric_version,
                      mask=0x3F, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0, 0)),
     kids=[StringFileInfo([StringTable("080904B0", [
-        StringStruct("CompanyName", "Kalkman Code"),
-        StringStruct("FileDescription", "Beamer"),
+        StringStruct("CompanyName", "Scotty (based on Beamer by Kalkman Code)"),
+        StringStruct("FileDescription", "Scotty"),
         StringStruct("FileVersion", version),
-        StringStruct("InternalName", "Beamer"),
-        StringStruct("OriginalFilename", "Beamer.exe"),
-        StringStruct("ProductName", "Beamer"),
+        StringStruct("InternalName", "Scotty"),
+        StringStruct("OriginalFilename", "Scotty.exe"),
+        StringStruct("ProductName", "Scotty"),
         StringStruct("ProductVersion", version),
     ])]), VarFileInfo([VarStruct("Translation", [0x0809, 1200])])],
 )
@@ -32,7 +32,7 @@ analysis = Analysis(
     # The repo root, for core/, which both apps share.
     pathex=[str(source_dir), str(source_dir.parent)],
     binaries=[],
-    datas=[(str(source_dir / "Beamer.ico"), "."), (str(source_dir / "assets"), "assets"),
+    datas=[(str(source_dir / "Scotty.ico"), "."), (str(source_dir / "assets"), "assets"),
            (str(source_dir.parent / "VERSION"), "."),
            (str(source_dir / "identify_layer_shell.py"), ".")]
           + [(str(path), "locales") for path in (source_dir.parent / "locales").glob("*.po")],
@@ -63,21 +63,21 @@ executable = EXE(
     filtered_binaries,
     analysis.datas,
     [],
-    name="Beamer",
+    name="Scotty",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     # The bootloader expands this per user before Python starts. Keep lazy-loaded DLLs
     # outside %TEMP%, where a sign-in cleanup can delete them during extraction.
-    runtime_tmpdir=r"%LOCALAPPDATA%\Beamer\Runtime",
+    runtime_tmpdir=r"%LOCALAPPDATA%\Scotty\Runtime",
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(source_dir / "Beamer.ico"),
+    icon=str(source_dir / "Scotty.ico"),
     version=version_info,
     # Default launches stay ordinary; administrator control needs explicit per-PC consent.
     uac_admin=False,

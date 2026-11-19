@@ -12,7 +12,7 @@ try {
         foreach ($shell in @(Get-CimInstance -ClassName Win32_Process -Filter "Name='explorer.exe' AND SessionId=$sessionId" -ErrorAction Stop)) {
             $owner = Invoke-CimMethod -InputObject $shell -MethodName GetOwnerSid -ErrorAction Stop
             if ($owner.ReturnValue -ne 0 -or $owner.Sid -ne $UserSid) {
-                throw 'Beamer must be installed by the signed-in user. Run the installer normally; give administrator permission only when maintenance asks.'
+                throw 'Scotty must be installed by the signed-in user. Run the installer normally; give administrator permission only when maintenance asks.'
             }
         }
     }

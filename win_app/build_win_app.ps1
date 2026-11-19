@@ -78,8 +78,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
 Invoke-Native { & .\.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm --distpath dist --workpath build build.spec }
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
 
-$Output = Join-Path $ScriptDir 'dist\Beamer.exe'
-if (-not (Test-Path $Output)) { throw 'PyInstaller did not create Beamer.exe' }
+$Output = Join-Path $ScriptDir 'dist\Scotty.exe'
+if (-not (Test-Path $Output)) { throw 'PyInstaller did not create Scotty.exe' }
 Sign-BeamerArtifact $Output
 Write-Output "Built $Output"
 
@@ -99,10 +99,10 @@ if ($Release) {
         $IsccArgs += '/Sbeamer=$q' + $SignTool + '$q sign /sha1 EA6F2A81A84E49D31FF7965A50D7DE771601DA0A /tr http://time.certum.pl /td sha256 /fd sha256 $f'
     }
     if ($ExperimentalSecureDesktop) { $IsccArgs += '/DSecureDesktop=1' }
-    $IsccArgs += 'Beamer-Setup.iss'
+    $IsccArgs += 'Scotty-Setup.iss'
     & $Iscc @IsccArgs
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
-    $Setup = Join-Path $ReleaseDir "Beamer-Setup-$Version.exe"
+    $Setup = Join-Path $ReleaseDir "Scotty-Setup-$Version.exe"
     Sign-BeamerArtifact $Setup
     $Commit = git -C $ProjectDir rev-parse --short HEAD
     Write-Output "Released $Setup from $Commit"

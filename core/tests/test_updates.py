@@ -5,7 +5,7 @@ from core import updates
 
 
 def release(tag, **extra):
-    return dict({"tag_name": tag, "html_url": f"https://github.com/kalkman-code/beamer/releases/tag/{tag}",
+    return dict({"tag_name": tag, "html_url": f"https://github.com/vjbuildswitai/Scotty/releases/tag/{tag}",
                  "draft": False, "prerelease": False}, **extra)
 
 
@@ -44,7 +44,7 @@ class NewerReleaseTests(unittest.TestCase):
 
     def test_a_newer_tag_is_offered_with_its_page(self):
         self.assertEqual(updates.newer_release("1.3.3", release("v1.4.0")),
-                         updates.Release("1.4.0", "https://github.com/kalkman-code/beamer/releases/tag/v1.4.0"))
+                         updates.Release("1.4.0", "https://github.com/vjbuildswitai/Scotty/releases/tag/v1.4.0"))
 
     def test_the_same_or_an_older_tag_is_not(self):
         self.assertIsNone(updates.newer_release("1.4.0", release("v1.4.0")))
@@ -227,7 +227,7 @@ class CheckerTests(unittest.TestCase):
     def test_reports_a_newer_release(self):
         checker, results = self.make(release("v1.4.0"))
         checker.check_once()
-        self.assertEqual(results, [updates.Release("1.4.0", "https://github.com/kalkman-code/beamer/releases/tag/v1.4.0")])
+        self.assertEqual(results, [updates.Release("1.4.0", "https://github.com/vjbuildswitai/Scotty/releases/tag/v1.4.0")])
 
     def test_reports_none_when_current(self):
         checker, results = self.make(release("v1.3.3"))
@@ -261,7 +261,7 @@ class NoticeTests(unittest.TestCase):
         self.assertIsNone(updates.visible_notice(found, True, "1.5.11"))
 
     def test_dismissal_survives_a_new_check_but_not_a_newer_version(self):
-        found = updates.Release("1.5.10", "https://github.com/kalkman-code/beamer/releases/tag/v1.5.10")
+        found = updates.Release("1.5.10", "https://github.com/vjbuildswitai/Scotty/releases/tag/v1.5.10")
         self.assertEqual(updates.visible_notice(found, True, ""), found)
         self.assertIsNone(updates.visible_notice(found, True, "1.5.10"))
         newer = updates.Release("1.5.11", updates.RELEASES_PAGE)
@@ -273,8 +273,8 @@ class NoticeTests(unittest.TestCase):
 
 
 class PortableCheckerTests(unittest.TestCase):
-    NAME = "Beamer-Portable-1.5.10-windows-x64.zip"
-    URL = "https://github.com/kalkman-code/beamer/releases/download/v1.5.10/" + NAME
+    NAME = "Scotty-Portable-1.5.10-windows-x64.zip"
+    URL = "https://github.com/vjbuildswitai/Scotty/releases/download/v1.5.10/" + NAME
 
     def make(self, assets, portable=True):
         payload = release("v1.5.10", assets=assets)
@@ -286,14 +286,14 @@ class PortableCheckerTests(unittest.TestCase):
 
     def test_portable_download_keeps_the_release_page_for_whats_new(self):
         checker, results = self.make([{"name": self.NAME, "browser_download_url": self.URL}])
-        page = "https://github.com/kalkman-code/beamer/releases/tag/v1.5.10"
+        page = "https://github.com/vjbuildswitai/Scotty/releases/tag/v1.5.10"
         self.assertEqual(checker.download_url, self.URL)
         self.assertEqual(checker.latest, updates.Release("1.5.10", page, False))
         self.assertEqual(results, [checker.latest])
 
     def test_missing_portable_zip_never_offers_the_installer(self):
         for assets in (None, [], {}, [None, "asset"],
-                       [{"name": "Beamer-Setup-1.5.10.exe", "browser_download_url": self.URL}]):
+                       [{"name": "Scotty-Setup-1.5.10.exe", "browser_download_url": self.URL}]):
             with self.subTest(assets=assets):
                 checker, results = self.make(assets)
                 self.assertEqual(checker.latest[0], "1.5.10")
@@ -303,10 +303,11 @@ class PortableCheckerTests(unittest.TestCase):
     def test_untrusted_or_wrong_release_assets_are_rejected(self):
         for url in (self.URL.replace("github.com", "github.com.evil.invalid"),
                     self.URL.replace("https:", "http:"),
-                    self.URL.replace("/beamer/", "/another-project/"),
+                    self.URL.replace("/Scotty/", "/another-project/"),
+                    self.URL.replace("/vjbuildswitai/Scotty/", "/kalkman-code/beamer/"),
                     self.URL.replace("/v1.5.10/", "/v1.5.9/"),
                     self.URL + "?source=untrusted", self.URL + "#fragment",
-                    self.URL.replace(self.NAME, "Beamer-Setup-1.5.10.exe"),
+                    self.URL.replace(self.NAME, "Scotty-Setup-1.5.10.exe"),
                     "https://evil.invalid/" + self.NAME):
             with self.subTest(url=url):
                 checker, _ = self.make([{"name": self.NAME, "browser_download_url": url}])
@@ -340,3 +341,14 @@ class PortableCheckerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForkReleaseTests(unittest.TestCase):
+    """Scotty asks its own fork about releases, never upstream Beamer, whose builds lack files."""
+
+    def test_the_check_asks_the_fork(self):
+        self.assertIn("/repos/vjbuildswitai/Scotty/releases/latest", updates.LATEST_URL)
+
+    def test_an_upstream_link_is_never_offered(self):
+        found = updates.newer_release("1.0.0", {"tag_name": "v1.1.0", "html_url": "https://github.com/kalkman-code/beamer/releases/tag/v1.1.0"})
+        self.assertEqual(found.url, updates.RELEASES_PAGE)

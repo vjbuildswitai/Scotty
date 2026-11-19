@@ -1,0 +1,10 @@
+#!/bin/sh
+# SDLC guard: blocks secrets and edits to locked tests (logic: .sdlc/guard.js), then runs the repo's own pre-commit.
+ROOT="$(git rev-parse --show-toplevel)"
+if command -v node >/dev/null 2>&1; then
+  node "$ROOT/.sdlc/guard.js" pre-commit || exit $?
+else
+  echo "[sdlc-guard] node not found - pre-commit checks skipped" >&2
+fi
+. "$ROOT/.githooks/_chain"
+sdlc_chain pre-commit "$@"

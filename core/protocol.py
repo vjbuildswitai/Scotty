@@ -27,6 +27,7 @@ import socket
 import struct
 import threading
 import time
+import unicodedata
 import zlib
 
 from nacl.bindings import (
@@ -110,6 +111,7 @@ MSG_SWITCH = "switch"
 MSG_ARRANGEMENT = "arrangement"
 MSG_SETTINGS = "settings"
 MSG_IDENTIFY_SCREENS = "identify_screens"
+MSG_FILES = "files"
 
 # System trackpad gestures. The Mac classifies one at the end of the movement and sends a
 # single message; the name is the finger motion, not its meaning, so the receiver decides
@@ -396,6 +398,94 @@ def read_identify_screens(message):
             or len(set(displays.values())) != len(displays)):
         return None
     return dict(displays)
+
+
+# Files across the edge (fork; WIRE.md section 11). The `files` manifest rides the link and stays
+# small: it names the top-level items and how to fetch them, never the bytes or the full listing,
+# which travel on the file channel (core/filechannel.py, FILES_PORT).
+CAP_CLIPBOARD_FILES = "clipboard_files"
+FILES_PORT = 24822
+FILES_TRANSFER_SIZE = 16
+FILES_TICKET_SIZE = 32
+FILES_MAX_NAMES = 1024
+FILES_NAMES_MAX_BYTES = 16 * 1024
+FILES_MAX_COUNT = 100000
+FILE_NAME_MAX_CHARS = 255
+_FILE_NAME_FORBIDDEN = re.compile(r'[\x00-\x1f<>:"/\\|?*]')
+_WINDOWS_RESERVED = re.compile(r"(?i)(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3])(\..*)?")
+
+
+def valid_file_name(name) -> bool:
+    """One path component that is safe to create on Windows and anywhere else: 1 to 255 UTF-16
+    units (how NTFS counts), no control character or any of <>:"/\\|?*, no invisible formatting
+    character (right-to-left overrides and zero-width marks, which can make "report<RLO>fdp.exe"
+    look like a PDF), not "." or "..", not ending in a dot or a space, and not a reserved device
+    name (CON, NUL, COM1, LPT1 and the rest, with or without an extension, and with the spaces
+    Windows ignores before the extension, "CON .txt")."""
+    if not isinstance(name, str) or _utf8_size(name) is None:
+        return False
+    return (
+        1 <= len(name.encode("utf-16-le")) // 2 <= FILE_NAME_MAX_CHARS
+        and name not in (".", "..")
+        and not name.endswith((".", " "))
+        and _FILE_NAME_FORBIDDEN.search(name) is None
+        and not any(unicodedata.category(character) == "Cf" for character in name)
+        and _WINDOWS_RESERVED.fullmatch(name) is None
+        and _WINDOWS_RESERVED.fullmatch(name.split(".", 1)[0].rstrip(" ")) is None
+    )
+
+
+def valid_relative_path(path) -> bool:
+    """A relative path inside a transfer: components joined by "/", each a valid_file_name, so
+    it can never climb out of the folder it is written under or name a drive."""
+    return isinstance(path, str) and 0 < len(path) <= 4096 and all(valid_file_name(part) for part in path.split("/"))
+
+
+def files_msg(transfer: bytes, ticket: bytes, port: int, names, count: int, total_bytes: int) -> dict:
+    """The manifest for files copied on the sender: a fresh 16-byte `transfer` id, a fresh 32-byte
+    `ticket` that opens the file channel for this transfer only, the `port` it listens on, the
+    top-level `names` as they will appear on the receiver's clipboard, and how many files and bytes
+    sit under them. Raises ValueError when it would not pass read_files."""
+    data = {
+        "transfer": id_text(bytes(transfer)),
+        "ticket": id_text(bytes(ticket)),
+        "port": port,
+        "names": list(names),
+        "count": count,
+        "total_bytes": total_bytes,
+    }
+    message = {"type": MSG_FILES, "data": data}
+    if read_files(message) is None:
+        raise ValueError("not a valid files manifest")
+    return message
+
+
+def read_files(message):
+    """{transfer, ticket, port, names, count, total_bytes} from a `files`, with `transfer` and
+    `ticket` as bytes, or None when anything in it is malformed or over a limit (a receiver drops
+    the whole manifest then; nothing is fetched)."""
+    parsed = read_message(message)
+    if parsed is None or parsed[0] != MSG_FILES:
+        return None
+    data = parsed[1]
+    transfer = _from_b64(data.get("transfer"), FILES_TRANSFER_SIZE)
+    ticket = _from_b64(data.get("ticket"), FILES_TICKET_SIZE)
+    names = data.get("names")
+    if (
+        transfer is None
+        or ticket is None
+        or not _int(data.get("port"), 1, 65535)
+        or not isinstance(names, list)
+        or not 1 <= len(names) <= FILES_MAX_NAMES
+        or not all(valid_file_name(name) for name in names)
+        or len({name.casefold() for name in names}) != len(names)
+        or sum(_utf8_size(name) for name in names) > FILES_NAMES_MAX_BYTES
+        or not _int(data.get("count"), 0, FILES_MAX_COUNT)
+        or not _int(data.get("total_bytes"), 0, MAX_SAFE_INTEGER)
+    ):
+        return None
+    return {"transfer": transfer, "ticket": ticket, "port": data["port"], "names": list(names),
+            "count": data["count"], "total_bytes": data["total_bytes"]}
 
 
 def gesture_msg(name: str) -> dict:

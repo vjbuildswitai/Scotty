@@ -1,0 +1,18 @@
+# Failures that upstream Beamer v1.5.21 (e918475) also has on VJ's LOQ, measured 2026-11-19 by
+# running tools/run_suite.py in a clean worktree of that commit. Baselines only shrink: remove a
+# line when its test passes; adding one needs VJ's OK.
+#
+# These three archive commits from before the fork point; the fork's history does not carry them.
+core: core.tests.test_profiles_migration.DowngradeCompatibilityTests.test_153_code_keeps_new_top_level_settings_and_peer_fields
+core: core.tests.test_profiles_migration.DowngradeCompatibilityTests.test_153_round_trips_keep_or_fold_live_crossing_edits
+core: core.tests.test_tile_resize.OlderPeerResizeCompatibilityTests.test_old_picture_readers_and_drops_preserve_resized_dimensions
+win_app: core.tests.test_profiles_migration.DowngradeCompatibilityTests.test_153_code_keeps_new_top_level_settings_and_peer_fields
+win_app: core.tests.test_profiles_migration.DowngradeCompatibilityTests.test_153_round_trips_keep_or_fold_live_crossing_edits
+win_app: core.tests.test_tile_resize.OlderPeerResizeCompatibilityTests.test_old_picture_readers_and_drops_preserve_resized_dimensions
+# Setting SYSTEM/Administrators as owner needs an elevated token (WinError 1307 when not elevated).
+win_app: test_secure_store_acl.StorePermissionTests.test_administrator_and_system_only_state_is_accepted
+win_app: test_secure_store_acl.StorePermissionTests.test_installer_rejects_readable_state_but_accepts_readable_binaries
+win_app: test_secure_store_acl.StorePermissionTests.test_users_read_access_to_machine_encrypted_grants_is_rejected
+win_app: test_secure_store_acl.StorePermissionTests.test_users_write_or_delete_access_is_rejected
+# Animation timing; fails on upstream here too.
+win_app: test_edge_glow.PreviewLoopHoverTests.test_the_hovered_tile_plays_on_from_its_still_and_settles_back

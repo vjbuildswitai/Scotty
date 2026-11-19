@@ -44,7 +44,7 @@ class PortablePackagingTests(unittest.TestCase):
         self.assertEqual(options['contents_directory'], '_internal')
         self.assertEqual(args[-1], [])
         self.assertNotIn('runtime_tmpdir', options)
-        self.assertEqual(self.calls['collect'][1]['name'], 'Beamer-portable')
+        self.assertEqual(self.calls['collect'][1]['name'], 'Scotty-portable')
 
     def test_qt_dlls_stay_beside_exe_and_system_stubs_stay_out(self):
         args, _ = self.calls['collect']

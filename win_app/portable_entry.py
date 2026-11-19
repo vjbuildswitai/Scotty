@@ -14,7 +14,7 @@ def prepare():
     except OSError:
         ctypes.windll.user32.MessageBoxW(
             None,
-            tr("Beamer Portable needs its Beamer.portable marker and a writable folder beside the app. "
+            tr("Beamer Portable needs its Scotty.portable marker and a writable folder beside the app. "
                "Move the whole folder to writable storage and try again."),
             tr("Beamer Portable"), 0x10,
         )

@@ -8,7 +8,7 @@ import admin_mode
 import autostart_win
 
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
-EXE = r"C:\Users\alex\AppData\Local\Beamer\Beamer.exe"
+EXE = r"C:\Users\alex\AppData\Local\Beamer\Scotty.exe"
 
 
 def setUpModule():
@@ -19,14 +19,14 @@ def setUpModule():
 
 class FakeSchtasks:
     def __init__(self, exists=False, fail=None):
-        self.tasks = {"Beamer"} if exists else set()
+        self.tasks = {"Scotty"} if exists else set()
         self.fail = fail
         self.calls = []
         self.xml = None
 
     def __call__(self, args):
         self.calls.append(args[1])
-        name = args[args.index("/tn") + 1] if "/tn" in args else "Beamer"
+        name = args[args.index("/tn") + 1] if "/tn" in args else "Scotty"
         if args[1] == "/create" and self.fail is None:
             with open(args[args.index("/xml") + 1], encoding="utf-16") as handle:
                 self.xml = handle.read()
@@ -50,7 +50,7 @@ class TaskXmlTests(unittest.TestCase):
         self.assertEqual(root.find("t:Triggers/t:LogonTrigger/t:UserId", NS).text, r"STUDIO-PC\alex")
 
     def test_escapes_the_path(self):
-        ET.fromstring(autostart_win.task_xml(r"C:\A & B\Beamer.exe", "u").replace('encoding="UTF-16"', ""))
+        ET.fromstring(autostart_win.task_xml(r"C:\A & B\Scotty.exe", "u").replace('encoding="UTF-16"', ""))
 
     def test_omitted_runlevel_matches_only_the_default_privilege_preference(self):
         root = ET.fromstring(autostart_win.task_xml(EXE, r"STUDIO-PC\alex", run_level="LeastPrivilege").replace(
@@ -89,7 +89,7 @@ class SwitchTests(unittest.TestCase):
         self.assertIn("Access is denied", str(caught.exception))
 
     def test_task_name_is_scoped_to_the_signed_in_user(self):
-        self.assertEqual(autostart_win.task_name("STUDIO-PC\\alex"), "Beamer-STUDIO-PC-alex")
+        self.assertEqual(autostart_win.task_name("STUDIO-PC\\alex"), "Scotty-STUDIO-PC-alex")
 
     def test_refuses_silent_elevation_for_another_users_session(self):
         fake = FakeSchtasks()
@@ -112,7 +112,7 @@ class SwitchTests(unittest.TestCase):
         fake = FakeSchtasks(exists=True)
         with patch.object(autostart_win, "installed_exe", return_value=EXE), patch.object(autostart_win, "can_run_for_current_user", return_value=True):
             self.assertTrue(autostart_win.is_enabled(fake, "STUDIO-PC\\alex"))
-        self.assertNotIn("Beamer", fake.tasks)
+        self.assertNotIn("Scotty", fake.tasks)
         self.assertLess(fake.calls.index("/create"), fake.calls.index("/delete"))
 
     def test_enabling_startup_replaces_the_legacy_task_instead_of_adding_a_second(self):
@@ -124,11 +124,11 @@ class SwitchTests(unittest.TestCase):
 
 class InstallerTests(unittest.TestCase):
     def test_inno_setup_keeps_app_operations_unelevated(self):
-        setup = (Path(__file__).parents[1] / "Beamer-Setup.iss").read_text(encoding="utf-8")
+        setup = (Path(__file__).parents[1] / "Scotty-Setup.iss").read_text(encoding="utf-8")
         self.assertIn("PrivilegesRequired=lowest", setup)
         self.assertIn('Flags: unchecked', setup[setup.index('[Tasks]') : setup.index('[Files]')])
         code = setup[setup.index("[Code]") :]
-        self.assertIn("Exec(ExpandConstant('{app}\\Beamer.exe'), '--enable-autostart'", code)
+        self.assertIn("Exec(ExpandConstant('{app}\\Scotty.exe'), '--enable-autostart'", code)
         self.assertIn("Invoke-InstallMaintenance.ps1", code)
         self.assertNotIn("ShellExec('runas'", code)
         self.assertIn("ewWaitUntilTerminated", code)
@@ -137,7 +137,7 @@ class InstallerTests(unittest.TestCase):
         self.assertNotIn("same administrator account", code)
         self.assertNotIn("<Task version=", code)
         self.assertNotIn('/Create /TN', code)
-        self.assertNotIn('/delete /tn "Beamer" /f', code)
+        self.assertNotIn('/delete /tn "Scotty" /f', code)
 
 
 if __name__ == "__main__":

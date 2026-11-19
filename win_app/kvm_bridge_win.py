@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QFileDialog,
     QStackedWidget,
     QStyle,
     QSystemTrayIcon,
@@ -89,6 +91,7 @@ import pages_win
 import hardware_win
 import peers_view
 import platform_parts
+import scotty_files
 import qr_code
 import quit_signals as quit_signals_module
 import global_shortcut_portal
@@ -108,7 +111,7 @@ from shake_stroke import shake_stroke
 import theme
 import tray_glyph
 import tokens
-from core import updates
+from core import brand, updates
 import widgets
 
 if sys.platform == "win32":
@@ -125,7 +128,7 @@ try:
 except OSError:
     VERSION = "dev"
 
-HOME_PAGE = "https://kalkmancode.co.uk/beamer"
+HOME_PAGE = brand.REPOSITORY_URL
 HOME_PAGE_TEXT = N_("Beamer's website")
 
 STATUS_TITLES = {
@@ -194,7 +197,7 @@ def xwayland_effects_available() -> bool:
     return xwayland_available(platform_parts.WAYLAND, os.environ)
 
 
-ICON_PATH = asset_path("Beamer.ico")
+ICON_PATH = asset_path("Scotty.ico")
 
 # The OS parts keep their Windows names so the code and its tests read as before; on Linux they are
 # the X11 or the portal back ends (platform_parts).
@@ -219,11 +222,11 @@ def configure_logging() -> Optional[Path]:
     global LOG_PATH
     candidates = [default_config_path().parent]
     if not portable_runtime.enabled():
-        candidates.append(Path(tempfile.gettempdir()) / "Beamer")
+        candidates.append(Path(tempfile.gettempdir()) / "Scotty")
     for directory in candidates:
         try:
             directory.mkdir(parents=True, exist_ok=True)
-            log_path = directory / "Beamer.log"
+            log_path = directory / "Scotty.log"
             handler = RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
             handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(threadName)s %(message)s"))
             root_logger = logging.getLogger()
@@ -342,6 +345,7 @@ class StatusBridge(QObject):
     # Either link, carrying a peer's Same on all machines state: (peer id, data).
     settings = Signal(str, object)
     identify = Signal(object)
+    files_event = Signal(object)  # fork (Scotty): a FilesBridge notice, from any thread
     shook_home = Signal(object)
     alert = Signal(str, str)
     # (version, url) when a newer Beamer is out, else None.
@@ -688,6 +692,17 @@ class WindowsApplication(QWidget):
         # this PC's own arrangement the moment a link comes up.
         self.sender.settings_callback = lambda peer, data: self.bridge.settings.emit(protocol.id_text(peer), data)
         self.sender.identify_callback = self._receive_identify_screens
+        # Fork (Scotty): copied files follow the pointer, Windows to Windows (FILES.md).
+        self.files = None
+        self.files_toast = None
+        self.files_path = app_config.files_settings_path(self.config_path)
+        if sys.platform == "win32" and hasattr(platform_parts.clipboard, "get_files"):
+            self.files = scotty_files.FilesBridge(app_config.load_files_settings(self.files_path),
+                                                  platform_parts.clipboard, self.bridge.files_event.emit)
+            self.bridge.files_event.connect(self._on_files_event)
+            self.server.files = self.files
+            self.sender.files = self.files
+            # Started with the receiver (_start_receiver), so an unpaired Scotty never listens.
         self.sender.arrangement_callback = lambda peer, read: self.bridge.arrangement.emit(
             protocol.id_text(peer), read["edge"], read["set_at"], protocol.id_text(read["by"]), read.get("way_back"),
             protocol.id_text(read["way_back_by"]) if read.get("way_back_by") else None
@@ -737,7 +752,7 @@ class WindowsApplication(QWidget):
                 lambda: self.sender.toggle_shortcut() if not self.sender.redirecting else None,
             )
         if hasattr(platform_parts.injector, "on_problem"):
-            platform_parts.injector.on_problem = lambda sentence: self.bridge.alert.emit("Beamer", sentence)
+            platform_parts.injector.on_problem = lambda sentence: self.bridge.alert.emit(brand.NAME, sentence)
         if self.permission_state is not None and hasattr(platform_parts.injector, "on_permission"):
             platform_parts.injector.on_permission = lambda status, detail="", retryable=False: self.permission_state.report(
                 "remote", status, detail, retryable,
@@ -746,7 +761,7 @@ class WindowsApplication(QWidget):
         self._trigger = capture_win.Trigger()
         self._sending_detail = "Not connected"
         self.update_checker = updates.Checker(
-            VERSION, lambda: self._config is None or self._config.check_updates, self.bridge.update.emit,
+            brand.VERSION, lambda: self._config is None or self._config.check_updates, self.bridge.update.emit,
             logger=LOGGER, portable=portable_runtime.enabled(),
             on_check=self.bridge.update_check.emit,
         )
@@ -831,7 +846,7 @@ class WindowsApplication(QWidget):
         row_layout.setSpacing(0)
 
         self.sidebar = widgets.Sidebar(
-            pages_win.PAGES, self._select_page, foot=tr("Beamer {version}\n{link}").format(version=VERSION, link=tr(HOME_PAGE_TEXT)), on_foot=self.open_home_page,
+            pages_win.PAGES, self._select_page, foot=tr("Beamer {version}\n{link}").format(version=brand.VERSION, link=tr(HOME_PAGE_TEXT)), on_foot=self.open_home_page,
             foot_tip=HOME_PAGE,
         )
         self.sidebar.setFixedWidth(theme.SIDEBAR_WIDTH)
@@ -982,6 +997,9 @@ class WindowsApplication(QWidget):
         layout.addWidget(self.link_module)
         layout.addWidget(self._input_module())
         layout.addWidget(self._same_module(current))
+        # getattr: tests build pages on a bare WindowsApplication that never made a FilesBridge.
+        if getattr(self, "files", None) is not None:
+            layout.addWidget(self._files_module())
         self.permissions_module = None
         if pages_win.linux_permissions_visible(sys.platform, platform_parts.WAYLAND):
             self.permissions_module = self._permissions_module()
@@ -1116,6 +1134,117 @@ class WindowsApplication(QWidget):
         except Exception as exc:
             self.permission_state.report(direction, "unavailable", str(exc))
 
+    # Fork (Scotty): files
+
+    def _files_module(self) -> QWidget:
+        settings = self.files.settings
+        module = widgets.Module(tr("Files"))
+        def _files_label(text, role, wrap=False):
+            # Wrapped and free to shrink, so a long translation in a narrow window stacks rather than
+            # overlaps. 1, not 0: a minimum width of 0 means "use the size hint", the widest word.
+            made = widgets.label(text, role, wrap=wrap)
+            made.setMinimumWidth(1)
+            return made
+        self.files_switch = widgets.Switch(tr("Copied files follow the pointer"))
+        self.files_switch.setFont(theme.font(theme.TYPE["body"]))
+        self.files_switch.setChecked(settings["enabled"])
+        self.files_switch.toggled.connect(lambda on: self._set_files(enabled=bool(on)))
+        module.body.addWidget(self.files_switch)
+        module.body.addWidget(_files_label(
+            tr("Copy files or folders in Explorer, move to another Windows PC running Scotty, and press Ctrl+V. "
+               "They travel over their own connection on TCP {port}, so the pointer never waits for them.").format(
+                port=protocol.FILES_PORT), "note", wrap=True))
+        folder_line = QHBoxLayout()
+        # Each row stacks its label above its controls: a wrapped label beside a button or spin box
+        # gets no width at narrow sizes, and its height then goes missing from the module.
+        self.files_folder_label = _files_label(settings["drop_folder"], "readout", wrap=True)
+        folder_line.addStretch(1)
+        change = widgets.ActionButton(tr("Change"))
+        change.setProperty("vernier", "small")
+        change.clicked.connect(self._choose_files_folder)
+        folder_line.addWidget(change)
+        open_button = widgets.ActionButton(tr("Open"))
+        open_button.setProperty("vernier", "small")
+        open_button.clicked.connect(self._open_files_folder)
+        folder_line.addWidget(open_button)
+        module.body.addWidget(_files_label(tr("Received files go to"), "note", wrap=True))
+        module.body.addWidget(self.files_folder_label)
+        module.body.addLayout(folder_line)
+        module.body.addWidget(_files_label(tr("Largest transfer, in GB"), "body", wrap=True))
+        limit_line = QHBoxLayout()
+        self.files_limit = QSpinBox()
+        self.files_limit.setRange(1, 1000000)
+        self.files_limit.setValue(max(1, round(settings["max_bytes"] / 1024 ** 3)))
+        self.files_limit.setKeyboardTracking(False)
+        self.files_limit.valueChanged.connect(lambda value: self._set_files(max_bytes=int(value) * 1024 ** 3))
+        limit_line.addWidget(self.files_limit)
+        limit_line.addStretch(1)
+        module.body.addLayout(limit_line)
+        module.body.addWidget(_files_label(tr("Clear files not pasted after, in days (0 keeps them)"), "body", wrap=True))
+        keep_line = QHBoxLayout()
+        self.files_keep = QSpinBox()
+        self.files_keep.setRange(0, app_config.FILES_MAX_KEEP_DAYS)
+        self.files_keep.setValue(settings.get("keep_days", app_config.FILES_DEFAULT_KEEP_DAYS))
+        self.files_keep.setKeyboardTracking(False)
+        self.files_keep.valueChanged.connect(lambda value: self._set_files(keep_days=int(value)))
+        keep_line.addWidget(self.files_keep)
+        keep_line.addStretch(1)
+        module.body.addLayout(keep_line)
+        module.body.addWidget(_files_label(
+            tr("Pasting moves received files out of that folder, so only one copy is left."), "note", wrap=True))
+        self.files_mark = widgets.Switch(tr("Mark received files as from another computer"))
+        self.files_mark.setFont(theme.font(theme.TYPE["body"]))
+        self.files_mark.setChecked(settings.get("mark_received", True))
+        self.files_mark.toggled.connect(lambda on: self._set_files(mark_received=bool(on)))
+        module.body.addWidget(self.files_mark)
+        module.body.addWidget(_files_label(
+            tr("Windows then asks before a received program runs, and Office opens received documents in Protected View."),
+            "note", wrap=True))
+        module.body.addWidget(_files_label(
+            tr("Applies to files this PC sends and receives. Turning files on or off takes effect for the "
+               "other machine when the link next connects."), "note", wrap=True))
+        return module
+
+    def _set_files(self, **changes) -> None:
+        if getattr(self, "files", None) is None:
+            return
+        settings = dict(self.files.settings, **changes)
+        try:
+            app_config.save_files_settings(self.files_path, settings)
+        except OSError:
+            LOGGER.exception("Could not save the files settings")
+        self.files.update(settings)
+        label = getattr(self, "files_folder_label", None)
+        if label is not None:
+            label.setText(settings["drop_folder"])
+
+    def _choose_files_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, tr("Where received files go"), self.files.settings["drop_folder"])
+        if folder:
+            self._set_files(drop_folder=os.path.normpath(folder))
+
+    def _open_files_folder(self) -> None:
+        folder = self.files.settings["drop_folder"]
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError:
+            LOGGER.exception("Could not make the drop folder")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _on_files_event(self, event) -> None:
+        """A FilesBridge notice, on the GUI thread: the progress panel while files arrive and when
+        they land; a refusal to send shows as the usual tray notice."""
+        if self._closing or not isinstance(event, dict):
+            return
+        if event.get("state") == "refused":
+            if hasattr(self, "tray") and self.tray.isVisible():
+                self.tray.showMessage(event.get("title", ""), event.get("message", ""), QIcon(str(ICON_PATH)), 6000)
+            return
+        if self.files_toast is None:
+            import scotty_toast
+            self.files_toast = scotty_toast.TransferToast(self.files.cancel)
+        self.files_toast.show_event(event)
+
     def _tray_module(self, current: Config) -> QWidget:
         module = widgets.Module(tr("Tray"))
         self.tray_switch = widgets.Switch(tr("Show in tray"))
@@ -1220,13 +1349,13 @@ class WindowsApplication(QWidget):
         except (ConfigError, OSError):
             LOGGER.exception("Update notice settings could not be read")
             self.update_notice.hide()
-            self.header_action.setText(tr("Beamer {version}").format(version=VERSION))
+            self.header_action.setText(tr("Beamer {version}").format(version=brand.VERSION))
             self.header_action.setEnabled(False)
             return
         found = updates.visible_notice(self._update, self._config is not None and self._config.check_updates,
                                        settings.get("dismissed_update_version", ""),
                                        requested=getattr(self, "_manual_update", False))
-        self.header_action.setText(tr("Beamer {version} is available…").format(version=found[0]) if found else tr("Beamer {version}").format(version=VERSION))
+        self.header_action.setText(tr("Beamer {version} is available…").format(version=found[0]) if found else tr("Beamer {version}").format(version=brand.VERSION))
         self.header_action.setEnabled(found is not None and not portal.sandboxed())
         if found:
             text = tr("Beamer {version} is available.").format(version=found[0])
@@ -2029,7 +2158,8 @@ class WindowsApplication(QWidget):
             "app": VERSION[:32] if VERSION.isascii() and VERSION.isprintable() else "dev",
             # A swipe has no shortcut every Linux desktop shares, so Linux does not offer gestures.
             "caps": [cap for cap in ("clipboard", "clipboard_image", "gestures", "media_keys", "text", "settings", "design_sync", "layout", "profiles", "displays", "identify_screens", "ping_rtt", "motion_path")
-                     if not (cap == "gestures" and OWN_PLATFORM == "linux")],
+                     if not (cap == "gestures" and OWN_PLATFORM == "linux")]
+                    + ([protocol.CAP_CLIPBOARD_FILES] if getattr(self, "files", None) is not None and self.files.advertised else []),
             "port": self._settings_port,
         }
 
@@ -4509,7 +4639,7 @@ class WindowsApplication(QWidget):
                 remaining = bool(settings["peers"])
         except (ConfigError, OSError):
             LOGGER.exception("A machine could not be removed")
-            self._on_alert("Beamer", tr("Beamer could not save the removal. Try again in a moment."))
+            self._on_alert(brand.NAME, tr("Beamer could not save the removal. Try again in a moment."))
             return
         LOGGER.info("Removed %s from the paired machines",
                     peerlist.label_for([removed], token=token) or "a machine")
@@ -5044,7 +5174,7 @@ class WindowsApplication(QWidget):
         self.status_action.setEnabled(False)
         menu.addSeparator()
         # The version line; it becomes the way to a newer release when there is one.
-        self.header_action = menu.addAction(tr("Beamer {version}").format(version=VERSION))
+        self.header_action = menu.addAction(tr("Beamer {version}").format(version=brand.VERSION))
         self.header_action.setEnabled(False)
         self.header_action.triggered.connect(self.open_update)
         menu.addSeparator()
@@ -5121,7 +5251,7 @@ class WindowsApplication(QWidget):
             config = load_config(self.config_path, unpaired_ok=True)
         except (ConfigError, OSError) as exc:
             LOGGER.warning("Configuration not reloaded: %s", exc)
-            self._on_alert("Beamer", tr("Could not reload the configuration: {error}").format(error=exc))
+            self._on_alert(brand.NAME, tr("Could not reload the configuration: {error}").format(error=exc))
             return
         self._host = config.host
         self._paired = bool(self.book.peers())
@@ -5245,6 +5375,9 @@ class WindowsApplication(QWidget):
         if self.server.listening and self._receiver_port != config.port:
             self.server.stop()
         self._receiver_port = config.port
+        if getattr(self, "files", None) is not None:
+            # Before the receiver, so its welcome already announces clipboard_files.
+            self.files.start()
         self.server.start(config.port)
 
     def _start_sending(self, config: Config) -> None:
@@ -5273,7 +5406,7 @@ class WindowsApplication(QWidget):
         can reach. A portal's error carries the whole sentence."""
         self.sender.set_redirecting(False)
         sentence = getattr(error, "sentence", None) or f"This machine's keyboard and mouse are no longer captured: {error}"
-        self.bridge.alert.emit("Beamer", sentence)
+        self.bridge.alert.emit(brand.NAME, sentence)
 
     def _on_hook_mouse(self, message: int, x: int, y: int, mouse_data: int) -> bool:
         """Every mouse message, on the hook thread: what Windows said becomes the sender's neutral
@@ -5488,7 +5621,11 @@ class WindowsApplication(QWidget):
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setText(tr(
             '<b>Beamer {version}</b><br>One keyboard and mouse for all your Macs and PCs.<br><br><a href="{url}" style="color: {colour};">{link}</a>'
-        ).format(version=VERSION, url=HOME_PAGE, colour=theme.colour("signal"), link=tr(HOME_PAGE_TEXT)))
+        ).format(version=brand.VERSION, url=HOME_PAGE, colour=theme.colour("signal"), link=tr(HOME_PAGE_TEXT))
+            + "<br><br>" + tr(
+            'Copied files and folders follow the pointer between Windows PCs. Based on Beamer {upstream} by {author}, '
+            'free software under the GNU GPL version 3. <a href="{url}" style="color: {colour};">Beamer\'s source</a>'
+        ).format(upstream=VERSION, author=brand.UPSTREAM_AUTHOR, url=brand.UPSTREAM_URL, colour=theme.colour("signal")))
         if portable_runtime.enabled():
             box.setInformativeText(tr("Portable — settings and pairing keys stay in this folder, protected by your passphrase. Administrator apps cannot be controlled."))
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -5530,6 +5667,8 @@ class WindowsApplication(QWidget):
             return
         self._closing = True
         self.identify_screens.stop()
+        if getattr(self, "files", None) is not None:
+            self.files.stop()
         self.refresh_timer.stop()
         self.update_checker.stop()
         if self.pairing is not None:
@@ -6042,7 +6181,7 @@ def main() -> None:
     instance_signal = quit_signals = application = controller_release = None
     try:
         app = QApplication(sys.argv)
-        app.setApplicationName("Beamer")
+        app.setApplicationName(brand.NAME)
         app.setDesktopFileName("uk.co.kalkman.beamer")
         app.setQuitOnLastWindowClosed(False)
         theme.init_fonts()

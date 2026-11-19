@@ -29,7 +29,7 @@ class UpgradeTasks(FakeSchtasks):
         result = super().__call__(args)
         if args[1] == "/query" and result.returncode == 0:
             xml = autostart_win.task_xml(EXE, self.owner)
-            if args[args.index("/tn") + 1] == "Beamer":
+            if args[args.index("/tn") + 1] == "Scotty":
                 xml = xml.replace('--hidden', self.arguments)
                 if not self.enabled:
                     xml = xml.replace("<Enabled>true</Enabled>", "<Enabled>false</Enabled>")
@@ -69,19 +69,19 @@ class UpgradeAutostartTests(unittest.TestCase):
         tasks = UpgradeTasks(fail='Access is denied')
         with self.assertRaises(OSError):
             autostart_win.is_enabled(tasks, USER)
-        self.assertEqual(tasks.tasks, {'Beamer'})
+        self.assertEqual(tasks.tasks, {'Scotty'})
         self.assertNotIn('/delete', tasks.calls)
 
     def test_other_accounts_task_is_not_migrated(self):
         tasks = UpgradeTasks(owner=r'SYNTHETIC\other')
         self.assertFalse(autostart_win.is_enabled(tasks, USER))
-        self.assertEqual(tasks.tasks, {'Beamer'})
+        self.assertEqual(tasks.tasks, {'Scotty'})
 
     def test_unresolvable_account_is_not_migrated(self):
         tasks = UpgradeTasks(owner='S-1-5-21-unknown')
         with patch.object(autostart_win, '_user_sid', side_effect=OSError('no mapping')):
             self.assertFalse(autostart_win.is_enabled(tasks, USER))
-        self.assertEqual(tasks.tasks, {'Beamer'})
+        self.assertEqual(tasks.tasks, {'Scotty'})
 
     def test_sid_principal_is_migrated_for_its_owner(self):
         tasks = UpgradeTasks(owner='S-1-5-21-123-456-789-1001')
@@ -94,7 +94,7 @@ class UpgradeAutostartTests(unittest.TestCase):
         tasks.tasks.add(autostart_win.task_name(USER))
         self.assertTrue(autostart_win.is_enabled(tasks, USER))
         self.assertNotIn('/create', tasks.calls)
-        self.assertNotIn('Beamer', tasks.tasks)
+        self.assertNotIn('Scotty', tasks.tasks)
 
     def test_broken_replacement_is_repaired_before_legacy_deletion(self):
         valid = autostart_win.task_xml(EXE, USER)
@@ -121,7 +121,7 @@ class UpgradeAutostartTests(unittest.TestCase):
         tasks.replacement_xml = autostart_win.task_xml(r'C:\Missing\Beamer.exe', USER)
         with self.assertRaises(OSError):
             autostart_win.is_enabled(tasks, USER)
-        self.assertIn('Beamer', tasks.tasks)
+        self.assertIn('Scotty', tasks.tasks)
         self.assertNotIn('/delete', tasks.calls)
 
     def test_migration_preserves_legacy_config_arguments(self):
@@ -147,7 +147,7 @@ class UpgradeAutostartTests(unittest.TestCase):
         tasks.fail_delete = True
         with self.assertRaises(OSError):
             autostart_win.is_enabled(tasks, USER)
-        self.assertEqual(tasks.tasks, {'Beamer', autostart_win.task_name(USER)})
+        self.assertEqual(tasks.tasks, {'Scotty', autostart_win.task_name(USER)})
         self.assertFalse(tasks.enabled)
         tasks.fail_delete = False
         tasks.calls.clear()
@@ -159,7 +159,7 @@ class UpgradeAutostartTests(unittest.TestCase):
         tasks = UpgradeTasks()
         with patch.object(autostart_win, 'installed_exe', return_value=r'C:\Other\Beamer.exe'):
             self.assertFalse(autostart_win.is_enabled(tasks, USER))
-        self.assertEqual(tasks.tasks, {'Beamer'})
+        self.assertEqual(tasks.tasks, {'Scotty'})
 
 
 if __name__ == '__main__':

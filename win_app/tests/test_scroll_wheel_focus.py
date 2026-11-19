@@ -226,7 +226,8 @@ class ScrollWheelFocusTest(unittest.TestCase):
                             self.assertEqual(self.value(control), value)
                             if bar.maximum() > 0:
                                 self.assertNotEqual(bar.value(), before)
-                self.assertEqual(found, {"crossing", "keyboard", "design"})
+                # Scotty: Overview has the Files size-limit and keep-days spin boxes.
+                self.assertEqual(found, {"overview", "crossing", "keyboard", "design"})
             finally:
                 window.server.stop()
                 window.close()
