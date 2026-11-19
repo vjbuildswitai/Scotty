@@ -175,12 +175,15 @@ class Tracker:
         self._held = False
         self.faced: Optional[str] = None  # what the person faces now, for the settings card
 
-    def note_input(self, now: float, held: bool, pressed: bool = False) -> None:
-        """Keyboard and mouse state from the input hooks: `held` while any key or button is down,
-        `pressed` on a key press."""
+    def note_input(self, now: float, held: bool, pressed: bool = False,
+                   last_key: Optional[float] = None) -> None:
+        """Keyboard and mouse state from the input hooks: `held` while any key or button is down;
+        a key press either as `pressed` (now) or as `last_key`, the time of the latest one."""
         self._held = held
         if pressed:
-            self._last_key = now
+            self._last_key = max(self._last_key, now)
+        if last_key is not None:
+            self._last_key = max(self._last_key, last_key)
 
     def moved_to(self, target: str, now: float) -> None:
         """Input moved some other way (the pointer crossed an edge, a shortcut): follow it, and

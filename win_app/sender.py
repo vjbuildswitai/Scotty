@@ -249,6 +249,9 @@ class LinkSender:
         self.identify_callback: Optional[Callable] = None
         # Fork (Scotty): the files bridge (outgoing(host), incoming(host, read)), set by the app.
         self.files = None
+        # Fork (Scotty): head turn reads these from its camera thread to never switch mid-typing.
+        self.last_key_at = float("-inf")
+        self._head_keys_held: set = set()
         self.paired_callback: Optional[Callable] = None
         self.link_callback: Optional[Callable[[bytes, bool], None]] = None
 
@@ -534,6 +537,7 @@ class LinkSender:
         """One key, from the hook thread: True when it is not for this PC. Held keys are known by
         their virtual key where there is one: the name is the character with Shift applied, so
         Shift let go before A made A's release arrive as "a" and miss."""
+        self._note_head_key(vk if vk is not None else name, down)
         owner = self._owner
         if owner is None:
             return False
@@ -940,6 +944,34 @@ class LinkSender:
         """The shortcut's way across and back, for when the pointer is not at an edge -- or the
         edge is off."""
         self.set_redirecting(not self.redirecting)
+
+    # -- Fork (Scotty): head turn -------------------------------------------
+
+    def _note_head_key(self, held, down: bool) -> None:
+        if down:
+            self._head_keys_held.add(held)
+            self.last_key_at = self._clock()
+        else:
+            self._head_keys_held.discard(held)
+
+    def now(self) -> float:
+        """The clock key times are read on."""
+        return self._clock()
+
+    def input_busy(self) -> bool:
+        """Any key or mouse button held down on this PC right now. A held key auto-repeats, so a
+        key 'held' with no press for 2 s is a release the hook missed and does not count."""
+        keys = bool(self._head_keys_held) and self._clock() - self.last_key_at < 2.0
+        return keys or bool(self._buttons_held)
+
+    def look_at(self, peer: Optional[bytes]) -> bool:
+        """Head turn: move input to `peer`, or home for None, exactly as the jump shortcut does.
+        False when nothing moved."""
+        if peer is None:
+            return self.set_redirecting(False)
+        if self.owner == peer:
+            return False
+        return self.go(peer)
 
     def go(self, peer: bytes, edge: Optional[str] = None, offset: Optional[float] = None,
            display=None, side=None) -> bool:
