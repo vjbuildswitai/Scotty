@@ -37,6 +37,17 @@ class FileNameTests(unittest.TestCase):
                      "a" * 256, "\ud800", None, 5):
             self.assertFalse(protocol.valid_file_name(name), repr(name))
 
+    def test_names_that_disguise_themselves_are_refused(self):
+        # From the security review: a right-to-left override shows "report‮fdp.exe" as
+        # "reportexe.pdf"; zero-width marks hide characters; Windows ignores spaces before an
+        # extension when it looks for device names; NTFS counts UTF-16 units, not characters.
+        for name in ("report‮fdp.exe", "inv​oice.pdf", "a⁦b", "﻿bom.txt", "CON .txt", "nul  .log",
+                     "\U0001f600" * 128):
+            self.assertFalse(protocol.valid_file_name(name), repr(name))
+        self.assertTrue(protocol.valid_file_name("a" * 255))
+        self.assertTrue(protocol.valid_file_name("\U0001f600" * 127))
+        self.assertTrue(protocol.valid_file_name("ICONS.txt"))
+
     def test_relative_paths_stay_inside(self):
         self.assertTrue(protocol.valid_relative_path("Holiday photos/day 1/IMG_0001.jpg"))
         for path in ("", "/abs", "a//b", "a/../b", "../a", "a/", "C:/x", "a\\b", "a/./b", None):

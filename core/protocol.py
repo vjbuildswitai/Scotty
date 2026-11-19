@@ -27,6 +27,7 @@ import socket
 import struct
 import threading
 import time
+import unicodedata
 import zlib
 
 from nacl.bindings import (
@@ -415,18 +416,22 @@ _WINDOWS_RESERVED = re.compile(r"(?i)(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]
 
 
 def valid_file_name(name) -> bool:
-    """One path component that is safe to create on Windows and anywhere else: 1 to 255
-    characters, no control character or any of <>:"/\\|?*, not "." or "..", not ending in a dot
-    or a space, and not a reserved device name (CON, NUL, COM1, LPT1 and the rest, with or
-    without an extension)."""
+    """One path component that is safe to create on Windows and anywhere else: 1 to 255 UTF-16
+    units (how NTFS counts), no control character or any of <>:"/\\|?*, no invisible formatting
+    character (right-to-left overrides and zero-width marks, which can make "report<RLO>fdp.exe"
+    look like a PDF), not "." or "..", not ending in a dot or a space, and not a reserved device
+    name (CON, NUL, COM1, LPT1 and the rest, with or without an extension, and with the spaces
+    Windows ignores before the extension, "CON .txt")."""
+    if not isinstance(name, str) or _utf8_size(name) is None:
+        return False
     return (
-        isinstance(name, str)
-        and 1 <= len(name) <= FILE_NAME_MAX_CHARS
-        and _utf8_size(name) is not None
+        1 <= len(name.encode("utf-16-le")) // 2 <= FILE_NAME_MAX_CHARS
         and name not in (".", "..")
         and not name.endswith((".", " "))
         and _FILE_NAME_FORBIDDEN.search(name) is None
+        and not any(unicodedata.category(character) == "Cf" for character in name)
         and _WINDOWS_RESERVED.fullmatch(name) is None
+        and _WINDOWS_RESERVED.fullmatch(name.split(".", 1)[0].rstrip(" ")) is None
     )
 
 

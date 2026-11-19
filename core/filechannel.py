@@ -35,9 +35,11 @@ only when everything arrived and checked out; a cancelled or failed transfer lea
 
 import datetime
 import hashlib
+import ipaddress
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -69,8 +71,10 @@ SALT = b"scotty-files-v1"
 TO_SENDER = b"to-sender"
 TO_RECEIVER = b"to-receiver"
 STAGING = ".scotty-incoming"
-DISK_HEADROOM_BYTES = 64 * 1024 * 1024
+DISK_HEADROOM_BYTES = 512 * 1024 * 1024  # never fill the drive: Windows needs room to run
 PROGRESS_SECONDS = 0.25
+MAX_CONNECTIONS = 8
+PER_ADDRESS = 2
 
 
 class TransferError(Exception):
@@ -107,11 +111,11 @@ class _Channel:
     def send_control(self, message: dict):
         self.send(KIND_CONTROL, json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
-    def recv(self):
-        length = struct.unpack(">I", _recv_exact(self.sock, 4))[0]
+    def recv(self, deadline=None):
+        length = struct.unpack(">I", _recv_exact(self.sock, 4, deadline))[0]
         if not FRAME_OVERHEAD <= length <= MAX_FRAME_BYTES:
             raise TransferError("the other machine sent a frame of an impossible size")
-        sealed = _recv_exact(self.sock, length)
+        sealed = _recv_exact(self.sock, length, deadline)
         self._received += 1
         try:
             plain = crypto_secretbox_open(sealed, self._nonce(self._received), self._recv_key)
@@ -123,7 +127,7 @@ class _Channel:
                 raise TransferError("the other machine sent too large a message")
             try:
                 message = json.loads(body.decode("utf-8"))
-            except (UnicodeDecodeError, ValueError) as exc:
+            except (UnicodeDecodeError, ValueError, RecursionError) as exc:
                 raise TransferError("the other machine sent a malformed message") from exc
             if not isinstance(message, dict) or not isinstance(message.get("op"), str):
                 raise TransferError("the other machine sent a malformed message")
@@ -133,9 +137,16 @@ class _Channel:
         raise TransferError("the other machine sent a frame of an unknown kind")
 
 
-def _recv_exact(sock, count):
+def _recv_exact(sock, count, deadline=None):
+    """`count` bytes. With a `deadline` (time.monotonic) the whole read must finish by then, so a
+    peer that trickles one byte at a time cannot hold the connection open."""
     data = bytearray()
     while len(data) < count:
+        if deadline is not None:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise TransferError("the other machine was too slow to start")
+            sock.settimeout(left)
         chunk = sock.recv(count - len(data))
         if not chunk:
             raise TransferError("the other machine closed the file connection")
@@ -209,11 +220,40 @@ def _check_name(name, where):
 
 
 def _is_junction(path):
+    """A junction or any other reparse point that is not a plain symbolic link: os.path.isjunction
+    on Python 3.12 and later, the file's own reparse-point attribute before that."""
     is_junction = getattr(os.path, "isjunction", None)
-    return bool(is_junction and is_junction(path))
+    if is_junction is not None and is_junction(path):
+        return True
+    try:
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attributes & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
 
 
 # The sender
+
+def _plain_address(address):
+    """An IP as text without an IPv6 zone and with an IPv4-mapped IPv6 address as plain IPv4, so
+    one machine always compares equal to itself however its connection arrived."""
+    address = str(address).split("%", 1)[0]
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    mapped = getattr(parsed, "ipv4_mapped", None)
+    return str(mapped or parsed)
+
+
+def _addresses_of(host):
+    """Every IP `host` (a name or an address) stands for, as _plain_address gives them; empty when
+    it cannot be looked up."""
+    try:
+        return {_plain_address(info[4][0]) for info in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)}
+    except (OSError, UnicodeError):
+        return set()
+
 
 class Offer:
     def __init__(self, transfer, ticket, names, entries, allowed_host, made_at):
@@ -222,6 +262,7 @@ class Offer:
         self.names = names
         self.entries = entries
         self.allowed_host = allowed_host
+        self.allowed_addresses = None  # the IPs allowed_host stands for, or None for any
         self.count = sum(1 for entry in entries if not entry.is_dir)
         self.total_bytes = sum(entry.size for entry in entries)
         self.made_at = made_at
@@ -239,6 +280,8 @@ class FileServer:
         self._sock = None
         self._closed = threading.Event()
         self._serving = {}  # connection: Offer, for cancel_sends
+        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        self._per_address = {}  # address: connections being served to it
         # on_progress(offer, state, sent_bytes): state is "sending" (sent_bytes so far), "sent" when
         # the receiver said bye with everything, or "stopped" when the connection ended before that.
         # Called on the serving thread.
@@ -249,11 +292,25 @@ class FileServer:
         return self._sock.getsockname()[1] if self._sock is not None else self._port
 
     def start(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        sock.bind((self._host, self._port))
-        sock.listen(4)
+        sock = None
+        if self._host == "0.0.0.0" and socket.has_ipv6:
+            # One dual-stack socket, so a peer reached over IPv6 can fetch too.
+            try:
+                sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                sock.bind(("::", self._port))
+            except OSError:
+                if sock is not None:
+                    sock.close()
+                sock = None
+        if sock is None:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            sock.bind((self._host, self._port))
+        sock.listen(MAX_CONNECTIONS)
         self._sock = sock
         threading.Thread(target=self._accept_loop, name="scotty-files-server", daemon=True).start()
         return self
@@ -269,11 +326,20 @@ class FileServer:
     def offer(self, paths, allowed_host=None) -> Offer:
         """List `paths` and keep them on offer for OFFER_SECONDS, to `allowed_host` only when given.
         Raises TransferError when they cannot be sent."""
+        allowed = _addresses_of(allowed_host) if allowed_host is not None else None
+        if allowed is not None and not allowed:
+            raise TransferError(f"the other machine's address {allowed_host} could not be looked up")
         names, entries = list_paths(paths)
         offer = Offer(secrets.token_bytes(protocol.FILES_TRANSFER_SIZE), secrets.token_bytes(protocol.FILES_TICKET_SIZE),
                       names, entries, allowed_host, self._clock())
+        offer.allowed_addresses = allowed
         with self._lock:
             self._expire_locked()
+            # One live offer per peer: a newer copy withdraws what was copied before it, so an
+            # older ticket opens nothing even if the peer kept it. A transfer already running
+            # carries on; the receiver cancels it itself when the newer manifest arrives.
+            for transfer in [t for t, old in self._offers.items() if old.allowed_host == allowed_host]:
+                del self._offers[transfer]
             self._offers[offer.transfer] = offer
             while len(self._offers) > MAX_OFFERS:
                 oldest = min(self._offers.values(), key=lambda item: item.made_at)
@@ -295,6 +361,11 @@ class FileServer:
             except OSError:
                 pass
         return bool(serving)
+
+    def has_offer(self, transfer) -> bool:
+        with self._lock:
+            self._expire_locked()
+            return transfer in self._offers
 
     @property
     def sending(self) -> bool:
@@ -331,14 +402,44 @@ class FileServer:
                     return
                 time.sleep(0.2)
                 continue
-            threading.Thread(target=self._serve, args=(conn, address), name="scotty-files-serve", daemon=True).start()
+            # A device on the network can open connections without a ticket. Only an address that
+            # something is on offer to gets a thread at all, at most PER_ADDRESS of them and
+            # MAX_CONNECTIONS in all, each with HANDSHAKE_SECONDS in total to authenticate.
+            peer = _plain_address(address[0])
+            with self._lock:
+                self._expire_locked()
+                wanted = any(offer.allowed_addresses is None or peer in offer.allowed_addresses
+                             for offer in self._offers.values())
+                crowded = self._per_address.get(peer, 0) >= PER_ADDRESS
+                if wanted and not crowded and self._slots.acquire(blocking=False):
+                    self._per_address[peer] = self._per_address.get(peer, 0) + 1
+                else:
+                    wanted = False
+            if not wanted:
+                LOGGER.info("refused a file connection from %s: nothing on offer to it, or too many", address[0])
+                conn.close()
+                continue
+            threading.Thread(target=self._serve_slot, args=(conn, address, peer), name="scotty-files-serve",
+                             daemon=True).start()
+
+    def _serve_slot(self, conn, address, peer):
+        try:
+            self._serve(conn, address)
+        finally:
+            with self._lock:
+                left = self._per_address.get(peer, 1) - 1
+                if left:
+                    self._per_address[peer] = left
+                else:
+                    self._per_address.pop(peer, None)
+            self._slots.release()
 
     def _serve(self, conn, address):
         try:
             with conn:
-                conn.settimeout(HANDSHAKE_SECONDS)
+                deadline = time.monotonic() + HANDSHAKE_SECONDS
                 conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                head = _recv_exact(conn, len(MAGIC) + protocol.FILES_TRANSFER_SIZE + RANDOM_SIZE)
+                head = _recv_exact(conn, len(MAGIC) + protocol.FILES_TRANSFER_SIZE + RANDOM_SIZE, deadline)
                 if head[:len(MAGIC)] != MAGIC:
                     return
                 transfer = head[len(MAGIC):len(MAGIC) + protocol.FILES_TRANSFER_SIZE]
@@ -346,7 +447,7 @@ class FileServer:
                 with self._lock:
                     self._expire_locked()
                     offer = self._offers.get(transfer)
-                if offer is None or (offer.allowed_host is not None and address[0] != offer.allowed_host):
+                if offer is None or (offer.allowed_addresses is not None and _plain_address(address[0]) not in offer.allowed_addresses):
                     LOGGER.info("refused a file connection from %s for an unknown or expired transfer", address[0])
                     return
                 random_s = secrets.token_bytes(RANDOM_SIZE)
@@ -354,25 +455,36 @@ class FileServer:
                 channel = _Channel(conn,
                                    _key(offer.ticket, transfer, random_r, random_s, TO_RECEIVER),
                                    _key(offer.ticket, transfer, random_r, random_s, TO_SENDER))
-                conn.settimeout(SOCKET_SECONDS)
                 with self._lock:
                     self._serving[conn] = offer
                 progress = _Sent(self, offer)
+                finished = False
                 try:
-                    finished = self._answer(channel, offer, progress)
+                    finished = self._answer(channel, offer, progress, deadline)
                 finally:
                     with self._lock:
                         self._serving.pop(conn, None)
+                        if finished or progress.bytes >= offer.total_bytes:
+                            # Single use: once every byte has gone out the ticket opens nothing,
+                            # whether or not the receiver said bye.
+                            self._offers.pop(offer.transfer, None)
                 self._tell(offer, "sent" if finished else "stopped", progress.bytes)
         except (TransferError, OSError) as exc:
             LOGGER.info("file connection from %s ended: %s", address[0], exc)
             if "offer" in locals() and "progress" in locals():
                 self._tell(offer, "stopped", progress.bytes)
 
-    def _answer(self, channel, offer, progress):
-        """True when the receiver said bye after taking everything it listed."""
+    def _answer(self, channel, offer, progress, deadline):
+        """True when the receiver said bye after taking everything it listed. Its first frame, the
+        proof that it holds the ticket, must arrive by `deadline` like the greeting."""
+        first = True
         while True:
-            kind, message = channel.recv()
+            if first:
+                kind, message = channel.recv(deadline)
+                channel.sock.settimeout(SOCKET_SECONDS)
+                first = False
+            else:
+                kind, message = channel.recv()
             if kind != KIND_CONTROL:
                 raise TransferError("the receiver sent file bytes")
             op = message["op"]
@@ -432,7 +544,8 @@ class _Sent:
 
 # The receiver
 
-def fetch(host, manifest, drop_folder, max_bytes, progress=None, cancel=None, today=None, connect=socket.create_connection):
+def fetch(host, manifest, drop_folder, max_bytes, progress=None, cancel=None, today=None, connect=socket.create_connection,
+          mark=None):
     """Fetch the files a `files` manifest (protocol.read_files' dict) names from `host`, into
     `drop_folder`/<yyyy-mm-dd>/, and return the full paths of the top-level items as they landed
     (each renamed "name (2)" and so on when the name is taken). `progress(done_bytes, total_bytes,
@@ -447,8 +560,12 @@ def fetch(host, manifest, drop_folder, max_bytes, progress=None, cancel=None, to
     if total + DISK_HEADROOM_BYTES > free:
         raise TransferError(f"{_size(total)} does not fit: {_size(free)} is free on that drive")
     staging = os.path.join(drop_folder, STAGING, manifest["transfer"].hex())
-    shutil.rmtree(staging, ignore_errors=True)
-    os.makedirs(staging)
+    # Partial files live beside the staging tree, named by their place in the listing, so no
+    # listed name (however crafted, whatever its case) can ever be one of them.
+    parts = staging + ".parts"
+    for folder in (staging, parts):
+        shutil.rmtree(folder, ignore_errors=True)
+        os.makedirs(folder)
     finished = threading.Event()
     try:
         try:
@@ -459,7 +576,7 @@ def fetch(host, manifest, drop_folder, max_bytes, progress=None, cancel=None, to
         with sock:
             threading.Thread(target=_close_on_cancel, args=(cancel, finished, sock), daemon=True).start()
             try:
-                _pull(sock, manifest, staging, max_bytes, progress, cancel)
+                _pull(sock, manifest, staging, max_bytes, progress, cancel, mark, parts)
             except (OSError, TransferError) as exc:
                 if cancel.is_set():
                     raise TransferCancelled("the transfer was cancelled") from exc
@@ -468,9 +585,11 @@ def fetch(host, manifest, drop_folder, max_bytes, progress=None, cancel=None, to
                 raise TransferError("the file connection to the other machine was lost") from exc
             finally:
                 finished.set()
+        _check_staged(staging, manifest)
         return _place(staging, manifest["names"], drop_folder, today)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(parts, ignore_errors=True)
         _remove_if_empty(os.path.join(drop_folder, STAGING))
 
 
@@ -484,7 +603,7 @@ def _close_on_cancel(cancel, finished, sock):
             return
 
 
-def _pull(sock, manifest, staging, max_bytes, progress, cancel):
+def _pull(sock, manifest, staging, max_bytes, progress, cancel, mark=None, parts=None):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     transfer, ticket = manifest["transfer"], manifest["ticket"]
     random_r = secrets.token_bytes(RANDOM_SIZE)
@@ -509,7 +628,8 @@ def _pull(sock, manifest, staging, max_bytes, progress, cancel):
             raise TransferCancelled("the transfer was cancelled")
         os.makedirs(os.path.dirname(target), exist_ok=True)
         channel.send_control({"op": "get", "index": index})
-        done = _receive_file(channel, entry, target, done, total, progress, cancel)
+        part = os.path.join(parts or (staging + ".parts"), str(index))
+        done = _receive_file(channel, entry, target, done, total, progress, cancel, mark, part)
     channel.send_control({"op": "bye"})
 
 
@@ -551,10 +671,11 @@ def _receive_listing(channel, manifest, max_bytes):
     return entries
 
 
-def _receive_file(channel, entry, target, done, total, progress, cancel):
+def _receive_file(channel, entry, target, done, total, progress, cancel, mark=None, part=None):
     digest, left = hashlib.sha256(), entry["size"]
-    part = target + ".part"
-    with open(part, "wb") as out:
+    part = part or target + ".part"
+    os.makedirs(os.path.dirname(part), exist_ok=True)
+    with open(part, "xb") as out:
         while True:
             kind, body = channel.recv()
             if kind == KIND_DATA:
@@ -577,14 +698,41 @@ def _receive_file(channel, entry, target, done, total, progress, cancel):
             if body.get("sha256") != digest.hexdigest():
                 raise TransferError(f"“{entry['path']}” arrived damaged")
             break
-    os.replace(part, target)
+    if mark is not None:
+        mark(part)
+    _move_no_replace(part, target, entry["path"])
     return done
+
+
+def _move_no_replace(source, target, shown):
+    """Rename `source` to `target`, failing rather than overwriting anything already there: two
+    listed names the drive treats as one (case, 8.3 short names) end the transfer, never lose a file."""
+    try:
+        if os.name == "nt":
+            os.rename(source, target)  # Windows refuses an existing target
+        else:
+            os.link(source, target)    # refuses an existing target; then drop the old name
+            os.unlink(source)
+    except FileExistsError as exc:
+        raise TransferError(f"“{shown}” clashes with another name in the same folder on this PC") from exc
+
+
+def _check_staged(staging, manifest):
+    """Before anything moves into place: exactly the listed number of files and bytes are there."""
+    count = size = 0
+    for root, _, files in os.walk(staging):
+        for name in files:
+            count += 1
+            size += os.path.getsize(os.path.join(root, name))
+    if count != manifest["count"] or size != manifest["total_bytes"]:
+        raise TransferError("what arrived does not match what was listed; nothing was kept")
 
 
 def _place(staging, names, drop_folder, today):
     day = (today or datetime.date.today()).isoformat()
     folder = os.path.join(drop_folder, day)
     os.makedirs(folder, exist_ok=True)
+    _mark_as_ours(folder)
     landed = []
     for name in names:
         source = os.path.join(staging, name)
@@ -621,3 +769,89 @@ def _size(count):
         if count < 1024 or unit == "TB":
             return f"{count:,.0f} {unit}" if unit == "bytes" else f"{count:,.1f} {unit}"
         count /= 1024
+
+
+# Received files on Windows
+
+# What Edge writes on a download. With it SmartScreen asks before a received program runs and
+# Office opens a received document in Protected View; it survives the move out of the drop folder.
+ZONE_IDENTIFIER = "[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=about:internet\r\n"
+
+
+def mark_from_another_computer(path) -> bool:
+    """Give `path` the Windows mark of the web (an NTFS Zone.Identifier stream). False when it
+    could not be written, off Windows or on a drive without streams (FAT32, some network shares);
+    the file is still fine, only unmarked."""
+    if os.name != "nt":
+        return False
+    try:
+        with open(path + ":Zone.Identifier", "w", encoding="ascii", newline="") as stream:
+            stream.write(ZONE_IDENTIFIER)
+        return True
+    except OSError:
+        LOGGER.info("could not mark %s as from another computer", path)
+        return False
+
+
+_DAY_FOLDER = re.compile(r"\d{4}-\d{2}-\d{2}")
+# A dated folder holding this file was made by Scotty; only those are ever cleared, so a folder
+# of the person's own that happens to be named like a date is never touched.
+OURS_MARKER = ".scotty-received"
+
+
+def _mark_as_ours(folder):
+    marker = os.path.join(folder, OURS_MARKER)
+    if os.path.exists(marker):
+        return
+    try:
+        with open(marker, "w", encoding="ascii") as out:
+            out.write("Files Scotty received. Pasting moves them out; what is left is cleared after some days.\n")
+        if os.name == "nt":
+            import ctypes
+            ctypes.windll.kernel32.SetFileAttributesW(marker, 0x2)  # hidden
+    except OSError:
+        LOGGER.info("could not mark %s as Scotty's", folder)
+
+
+def clean_drop_folder(drop_folder, keep_days, today=None) -> int:
+    """Remove what was received more than `keep_days` days ago and never pasted (pasting moves
+    files out), and any empty dated folder before today. Only Scotty's own dated folders
+    (yyyy-mm-dd) directly in `drop_folder` are touched, and stale staging from a transfer that
+    died with the app; nothing else in the folder, and never through a link or junction. 0 keeps
+    everything. Returns how many dated folders were removed; never raises."""
+    removed = 0
+    today = today or datetime.date.today()
+    try:
+        names = os.listdir(drop_folder)
+    except OSError:
+        return 0
+    for name in names:
+        path = os.path.join(drop_folder, name)
+        if not _DAY_FOLDER.fullmatch(name) or os.path.islink(path) or _is_junction(path) or not os.path.isdir(path):
+            continue
+        if not os.path.isfile(os.path.join(path, OURS_MARKER)):
+            continue
+        try:
+            day = datetime.date.fromisoformat(name)
+        except ValueError:
+            continue
+        try:
+            if keep_days and (today - day).days > keep_days:
+                shutil.rmtree(path)
+                removed += 1
+            elif day < today and os.listdir(path) == [OURS_MARKER]:
+                shutil.rmtree(path)
+                removed += 1
+        except OSError:
+            LOGGER.info("could not clear %s from the drop folder", path)
+    staging = os.path.join(drop_folder, STAGING)
+    if os.path.isdir(staging) and not os.path.islink(staging) and not _is_junction(staging):
+        for name in os.listdir(staging):
+            path = os.path.join(staging, name)
+            try:
+                if time.time() - os.path.getmtime(path) > 24 * 60 * 60:
+                    shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                pass
+        _remove_if_empty(staging)
+    return removed

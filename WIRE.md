@@ -1566,7 +1566,7 @@ clipboard follows the input), when the sender's clipboard holds copied files or 
 | `transfer` | 16 random bytes, `b64`, fresh per manifest: names this transfer |
 | `ticket` | 32 random bytes, `b64`, fresh per manifest: opens the file channel for this transfer only. It is safe on the link because the link is encrypted to the paired peer |
 | `port` | integer 1 to 65535: the TCP port the sender's file channel listens on, 24822 by default |
-| `names` | 1 to 64 top-level names, as the receiver's clipboard will hold them, at most 16 KiB of UTF-8 in all, none equal to another ignoring case |
+| `names` | 1 to 1,024 top-level names, as the receiver's clipboard will hold them, at most 16 KiB of UTF-8 in all, none equal to another ignoring case |
 | `count` | integer 0 to 100,000: how many files sit under `names` (a folder with nothing in it counts none) |
 | `total_bytes` | integer 0 to 2^53 - 1: their sizes added up |
 
@@ -1578,9 +1578,10 @@ rule is dropped whole and nothing is fetched.
 
 The manifest is a summary, so it always stays far under the 64 KiB a link treats as a large frame
 and never holds up input. The full listing, every file's path and size, and the bytes come over the
-file channel: the receiver connects to the sender's address on `port`, presents the ticket, and
-pulls. The sender keeps a ticket for 10 minutes, or until a newer manifest replaces it, then
-refuses it. The file channel's framing is described in FILES.md.
+file channel: the receiver connects to the sender's address on `port`, proves it holds the ticket
+(keys derived from it, never the ticket itself), and pulls. The sender keeps a ticket until the
+receiver has everything, a newer manifest replaces it, or 10 minutes pass, then refuses it. The
+file channel's framing is described in `core/filechannel.py` and SECURITY.md (Files).
 
 A receiver over its own size limit (`files.max_bytes`, 2 GiB by default) fetches nothing and says
 so; the sender checks its own limit first and sends no manifest over it.
