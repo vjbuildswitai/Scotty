@@ -1,0 +1,33 @@
+{
+  "protectedBranches": [
+    "main",
+    "file-transfer"
+  ],
+  "chainHooks": "",
+  "deployPatterns": [
+    "gh release create",
+    "gh release edit"
+  ],
+  "verify": "bash scripts/verify.sh",
+  "secretPaths": [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "id_rsa*",
+    "id_ed25519*",
+    "credentials*.json",
+    "service-account*.json",
+    "*.secret",
+    "secrets/**"
+  ],
+  "allowSecretPaths": [
+    ".env.example",
+    ".env.sample",
+    ".env.template",
+    "*.example",
+    "*.sample"
+  ],
+  "secretPatterns": []
+}

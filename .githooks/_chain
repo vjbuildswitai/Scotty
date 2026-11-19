@@ -1,0 +1,15 @@
+# Sourced by the hooks in this folder. Runs the same hook from the repo's own hooks folder
+# (e.g. scripts/git-hooks for GitNexus/graphify refresh) so the SDLC guard never replaces them.
+# Where they live: git config sdlc.chainHooksPath, else "chainHooks" in .sdlc/config.json.
+sdlc_chain() {
+  HOOK="$1"; shift
+  ROOT="$(git rev-parse --show-toplevel)"
+  CHAIN="$(git config --get sdlc.chainHooksPath)"
+  if [ -z "$CHAIN" ] && command -v node >/dev/null 2>&1; then
+    CHAIN="$(node -e "try{process.stdout.write(require(process.argv[1]).chainHooks||'')}catch(e){}" "$ROOT/.sdlc/config.json" 2>/dev/null)"
+  fi
+  [ -z "$CHAIN" ] && return 0
+  case "$CHAIN" in /*|?:*) DIR="$CHAIN" ;; *) DIR="$ROOT/$CHAIN" ;; esac
+  [ -f "$DIR/$HOOK" ] || return 0
+  if head -n 1 "$DIR/$HOOK" | grep -q bash; then bash "$DIR/$HOOK" "$@"; else sh "$DIR/$HOOK" "$@"; fi
+}
