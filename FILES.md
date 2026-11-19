@@ -25,8 +25,10 @@ their own connection and never touch the input link except for a small manifest.
    never crosses this connection and no key is used twice. Frames are NaCl SecretBox with counter
    nonces; file bytes go in 1 MiB frames. The receiver asks for the full listing (relative paths and
    sizes) and then each file; the sender rechecks size and modified time before sending one, and
-   SHA-256 is compared per file. Pull model: the receiver owns the writes and can cancel. An offer
-   lasts 10 minutes and is served only to the address it was offered to.
+   SHA-256 is compared per file. Pull model: the receiver owns the writes and can cancel; the
+   sender can cancel too. An offer is single-use (gone once everything arrived), lasts at most 10
+   minutes, is served only to the resolved address it was offered to, and the listener holds at most
+   8 connections at once.
 4. **Clipboard** (win_app/clipboard_win.py): `get_files()` / `set_files(paths)` read and write the
    `CF_HDROP` block (20-byte `DROPFILES` header, `fWide=1`, double-NUL UTF-16 list), parsed and built
    in pure Python rather than through `DragQueryFileW`, so it is tested off Windows. Cut (Ctrl+X) is
@@ -34,15 +36,21 @@ their own connection and never touch the input link except for a small manifest.
 5. **Drop folder**: files arrive in `<drop>/.scotty-incoming/<transfer>/` (each file as `.part`
    until its hash checks out), and only when everything arrived do the top-level items move to
    `<drop>/<yyyy-mm-dd>/`, renamed "name (2)" if taken. A cancelled or failed transfer leaves
-   nothing. The landed paths go onto the receiver's clipboard as `CF_HDROP`, so Ctrl+V in Explorer
-   pastes them. A small panel in the corner shows progress, Cancel and Open folder.
+   nothing. Each file gets the mark of the web (`:Zone.Identifier`, ZoneId=3) before it moves into
+   place, unless that setting is off. The landed paths go onto the receiver's clipboard as
+   `CF_HDROP` with `Preferred DropEffect` = move (what Explorer's Cut writes), so Ctrl+V moves them
+   out of the drop folder: one copy at the destination, an instant rename on the same drive. Dated
+   folders older than `keep_days` (7) and empty ones from earlier days are removed at start and
+   after each transfer; nothing else in the drop folder is touched, and never through a link. A
+   small panel in the corner shows progress and Cancel on both PCs, and Open folder at the end.
 6. **App** (win_app/scotty_files.py `FilesBridge`, hooks in core/receiver.py, win_app/sender.py,
    core/owner.py): the manifest goes out with the clipboard, both ways. The driven PC takes one only
    from the PC driving it; the driving PC only from a PC it has just let go of, once, by the
    clipboard's rule and window (owner `files_arrived`). A newer manifest cancels an older fetch.
 7. **Settings** (Overview page, Files; saved in `scotty.json` beside `settings.json` so profile
    sync and migrations never touch them): on/off (on), drop folder (default
-   `%USERPROFILE%\Downloads\Scotty Drop`), largest transfer in GB (default 2, up to 1,000,000).
+   `%USERPROFILE%\Downloads\Scotty Drop`), largest transfer in GB (default 2, up to 1,000,000),
+   days to keep what was not pasted (7; 0 keeps it), mark received files (on).
    Over the cap: nothing is sent and the sender says so. `clipboard_files` is announced only while
    the listener is up; switching files on or off reaches the other PC when the link next connects.
 8. **Firewall**: the installer adds `Scotty Files (TCP-In)`, TCP 24822, Private profile, for the exe.
@@ -51,7 +59,11 @@ their own connection and never touch the input link except for a small manifest.
    end-to-end transfers including tampering, expiry and cancel (Linux and Windows), the bridge with
    a real transfer, the owner and receiver hooks. 1 GB over loopback on the LOQ: 6.1 s, identical.
 
+## Limits
+1,024 top-level items and 100,000 files a copy, any folder depth (Windows' path length is the
+limit), 2 GB by default (any size allowed). An archive is one file.
+
 ## Not in v1
 Mac/Linux senders or receivers, drag-and-drop across the edge, resume after a dropped link
-(the transfer restarts), more than 64 top-level items in one copy (put them in a folder), files
-passed on through a chain of three machines, renaming the app and its exe from Beamer to Scotty.
+(the transfer restarts), files passed on through a chain of three machines, pasting straight from
+the network without the drop folder (virtual files: possible later, see the 2026-11-19 plan).

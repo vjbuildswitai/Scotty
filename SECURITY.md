@@ -29,6 +29,55 @@ matters. This is what it protects, what it does not, and how to report a problem
 - **Unauthenticated connections are limited.** A peer has five seconds and a 4KB first frame to
   authenticate, and Beamer holds only a small number of unauthenticated connections at once.
 
+## Files (Scotty)
+
+Scotty adds copied files on their own connection, TCP 24822. Design: FILES.md; wire: WIRE.md
+section 11; code: `core/filechannel.py`.
+
+- **A one-time ticket, only inside the link above.** Each copy gets a fresh 16-byte transfer id
+  and 32-byte ticket, sent in the `files` manifest over the paired, encrypted link. The file
+  connection never carries the ticket.
+- **Fresh keys per connection and per direction.** Each end sends 32 random bytes; each direction's
+  key is HKDF-SHA256 over the ticket, with both randoms as salt and the transfer id and direction
+  as info. Frames are NaCl SecretBox (XSalsa20-Poly1305) with a counter nonce, so a replayed,
+  dropped, reordered or reflected frame fails and ends the connection, and no key or nonce is ever
+  reused. A connection naming an unknown transfer is closed with nothing sent; one naming a known
+  transfer but lacking the ticket gets a 7-byte greeting and 32 random bytes, and its first frame
+  fails to open.
+- **Short-lived, single-use, one peer.** An offer stops working once every byte of it has been
+  sent (whether or not the other PC confirms), as soon as a newer copy is offered to that PC, or
+  after 10 minutes. It is served only to the address of the PC it was offered to (host names
+  resolved; IPv4 and IPv6); with no known address nothing is offered at all.
+- **Nothing to talk to unless it is wanted.** Scotty only listens on 24822 once it is paired. A
+  connection from an address with nothing on offer to it is closed straight away, before any
+  thread or byte is spent on it; an address that is gets at most 2 connections, 8 in all, and each
+  has 10 seconds in total (not per read) to send its greeting and prove it holds the ticket.
+- **Nothing outside what was copied.** The sender serves its own listing by index. Symbolic links
+  and junctions inside copied folders are skipped. Each file's size and modified time are checked
+  again just before sending.
+- **Nothing outside the holding folder, and no disguised names.** Every received name is checked:
+  no `..`, drive, `:` stream, control character, device name (`CON`, `NUL`, `COM1`..., also
+  `CON .txt`), trailing dot or space, invisible formatting character (a right-to-left override
+  can make `report‮fdp.exe` look like a PDF), more than 255 UTF-16 units, or two names that differ
+  only by case. Partial files are numbered by their place in the listing in a folder of their own,
+  so no listed name can collide with one; each moves into place with a rename that refuses to
+  overwrite, so two names the drive treats as one end the transfer instead of losing a file.
+  Files move into the holding folder only when every SHA-256 matches and the count and bytes add
+  up; a failed or cancelled transfer leaves nothing.
+- **Bounded.** The receiver checks its size limit and free disk space (leaving 512 MB for
+  Windows) before connecting; at most 100,000 files and 1,024 top-level names a copy; one fetch at
+  a time, the newest replacing any waiting, so a flood of copies cannot pile up work.
+- **Its own folders only.** Received files go in dated folders that Scotty marks as its own, and
+  only those are ever cleared; a folder of yours named like a date is never touched.
+- **Taken only from the PC in charge.** A PC takes a manifest only from the PC driving it, or from
+  the PC it has just handed the pointer to, once, within 10 seconds.
+- **Marked as from another computer.** Received files get the Windows mark of the web (ZoneId=3)
+  unless turned off, so SmartScreen and Office Protected View treat them like a download. The mark
+  lives on NTFS drives: a holding folder on FAT32 or exFAT cannot keep it (Scotty says so when a
+  transfer arrives), and pasting onto such a drive drops it, as it does for any download.
+- **Portable passphrase**: Argon2id at moderate strength (256 MiB a guess); a vault written by an
+  older version is rewritten at that strength on first unlock.
+
 ## What it does not protect against
 
 - **Someone on your network can see that Beamer is running.** Machines announce their name and
@@ -48,12 +97,17 @@ matters. This is what it protects, what it does not, and how to report a problem
 - **Traffic analysis.** Encryption hides the contents, not when machines talk or the size and timing
   of frames. The protocol version and a stable key identifier for the pair are sent in the clear,
   so a network observer can recognise connections between the same pair of machines.
+- **A paired PC can send you files.** Within your size limit, into the holding folder, marked as
+  from another computer; it cannot place them anywhere else or run them. The sizes and timing of a
+  file transfer are visible on the network, not its names or contents.
 - **Old Beamer versions cannot connect to 1.5.0.** Version 1.5.0 uses wire version 6; Beamer 1.4.x
   uses version 5. Update both ends and pair the machines again.
 
 ## Reporting a vulnerability
 
-Please report privately, not in a public issue. On
+Please report privately, not in a public issue. For Scotty's file transfer or anything Scotty
+changed, use the Security tab on [github.com/vjbuildswitai/Scotty](https://github.com/vjbuildswitai/Scotty).
+For the link and pairing themselves, which come from Beamer, on
 [github.com/kalkman-code/beamer](https://github.com/kalkman-code/beamer), open the Security tab and
 choose Report a vulnerability. Say what you found, how to reproduce it, and which version and
 platform. Beamer is made by one person, so there is no fixed response time.

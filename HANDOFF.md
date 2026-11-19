@@ -1,4 +1,4 @@
-# Handoff — two-laptop ecosystem + Beamer fork (2026-11-18)
+# Handoff — Scotty (two-laptop setup, built on Beamer), updated 2026-11-19
 
 Everything decided and found so far, so this project can continue on VJ's PC without the chat.
 
@@ -10,12 +10,14 @@ Bluetooth mouse across both laptops, copy-paste between them, moving and opening
 ## Decisions VJ made
 - Fork Beamer and add file sending over the local network (instead of Microsoft PowerToys Mouse
   Without Borders, which already does clipboard + single file ≤100 MB). He expects Beamer to work better.
-- Fork under his own GitHub account for now. The GitHub account connected to Claude is
-  `BigBoost-Dev`; forking from the Claude side was blocked by the proxy (write to `/forks` not
-  permitted), so the fork is created by hand at https://github.com/kalkman-code/beamer/fork.
+- The product is **Scotty** (free forever, open source, shown on his channel), built on Beamer
+  and crediting it. Repo: https://github.com/vjbuildswitai/Scotty; `main` is what people download.
 - File-size cap: 2 GB default, must be configurable upward.
-- Drop folder (where received files land before Ctrl+V): default `%USERPROFILE%\Downloads\Beamer Drop`,
-  changeable in settings.
+- Drop folder: `%USERPROFILE%\Downloads\Scotty Drop`, changeable. Pasting moves files out of it
+  (one copy, not two); what is never pasted is cleared after 7 days.
+- Security must be top class: assume people will look for holes (SECURITY.md, Files).
+- Work follows his SDLC kit: plan, OK, branch, PR, verify, release only on his OK.
+- One working copy only: `D:\Projects\Beamer` on the LOQ.
 
 ## What was verified about the tools (Nov 2026)
 - Beamer 1.5.21 (GPL-3.0, one maintainer, Python/PySide6/PyNaCl, PyInstaller builds). Two Windows
@@ -44,25 +46,29 @@ Manifest on the input link + separate encrypted pull channel on TCP 24822; CF_HD
 Windows; `.part` writes renamed on completion; cap and drop folder in settings; capability-gated so
 stock Beamer/Mac peers are unaffected.
 
-## Status (2026-11-19)
-- Built and pushed to https://github.com/vjbuildswitai/Scotty, branch `file-transfer`, working copy
-  `D:\Projects\Beamer` on the LOQ. Commits: design notes; protocol + capability; CF_HDROP clipboard;
-  file channel; app wiring (FilesBridge, progress panel, Files settings); installer firewall rule.
-- Tests pass on Linux and on the LOQ (Windows 11, Python 3.12, `win_app\.venv`). Upstream tests
-  that fail without changes: four that need old commits missing from GitHub (core), and a handful of
-  win_app modules that need a real Windows desktop when run on Linux.
-- Portable build works: `win_app\dist\portable\Beamer-Portable-1.5.21-windows-x64.zip`. A dev run
-  with a throwaway settings folder listened on TCP 24822. 1 GB over loopback: 6.1 s, identical.
-- Not yet done: the two-laptop test (needs the second laptop), renaming the app/exe to Scotty.
+## Status (2026-11-19, morning)
+- Branch `feat/scotty-1.0` on GitHub holds all of Scotty 1.0: files across the edge, the name,
+  icon and identity, update checks from this repo, the security fixes in
+  `docs/plans/2026-11-19-security-and-drop-folder.md`, move-on-paste and cleanup, sending progress
+  and Cancel, stronger portable passphrase, the SDLC kit (guards, verify, CI, AI review), README,
+  SECURITY (Files), TESTING, CHANGELOG. It reaches `main` by PR.
+- Proof: `bash scripts/verify.sh` (all tests against `.sdlc/known-failures.txt`, plus 1 GB through
+  the file channel).
+- Not done: the two-laptop test in TESTING.md (needs VJ and both PCs); a published release (needs
+  his OK; the build zip is `win_app\dist\portable\Scotty-Portable-1.0.0-windows-x64.zip`).
+- VJ, once: install the Claude GitHub app on the repo and set `CLAUDE_CODE_OAUTH_TOKEN` (kit
+  README) so PRs get the AI review; turn on private vulnerability reporting in the repo's
+  Settings, Security.
 
 ## Test on both laptops
-1. Set Wi-Fi `KraftPanda` to **Private** on both laptops.
-2. Copy `Beamer-Portable-1.5.21-windows-x64.zip` to the second laptop, unzip both, run `Beamer.exe`,
-   choose a portable passphrase on each, allow the firewall prompt (Private).
-   Or install with `win_app\Install-Beamer.ps1` on each; it adds the 24822 rule.
-3. Pair with the six-digit code, arrange the screens.
-4. Copy a ~1 GB file in Explorer on laptop A, push the pointer across, Ctrl+V in a folder on B.
-   Watch the corner panel; keep moving the pointer: it must stay smooth. Then copy a folder on B,
-   cross back, Ctrl+V on A.
-5. Received files are in `Downloads\Scotty Drop\<date>`; size limit and folder are under
-   Overview → Files. Over 144 Mbps Wi-Fi expect about 10 MB/s.
+Follow TESTING.md. Wi-Fi `KraftPanda` must be **Private** on both. Connect the keyboard and mouse
+to one laptop only; Scotty carries them to the other over the network.
+
+## Idea, not planned: switch by where you look
+VJ saw a two-Mac setup where keyboard and mouse follow the screen he looks at. It exists as small
+open-source tools (gazectl, miru, EyeFocus) that read head direction from a webcam after a short
+calibration and move focus between monitors. For Scotty it would be: the laptop the keyboard is
+connected to watches its webcam, and turning your head towards the other laptop does what Beamer's
+jump key already does (hand input over). Trade-offs: webcam always on (privacy, its light stays
+on), lighting and glasses affect it, false switches when you glance away, and CPU use. Would need
+its own plan, an off-by-default setting and on-device processing only.
