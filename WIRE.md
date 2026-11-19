@@ -1,5 +1,9 @@
 # The link, wire version 6
 
+> **Scotty:** this is Beamer's protocol, which Scotty speaks unchanged so the two work together.
+> Names inside it (such as `beamer-pair-v2`) are protocol constants and must stay as they are.
+> Scotty's own addition, the files message, is section 11 of WIRE.md.
+
 How machines running Beamer 1.5.0 and later know each other, open an encrypted link, and hand
 input from one to another, exactly enough to write a second implementation. Pairing, the
 exchange that gives two machines their shared token, is in [PAIRING.md](PAIRING.md); this file

@@ -1,12 +1,12 @@
 name: Feature request
-description: Something Beamer does not do yet.
+description: Something Scotty does not do yet.
 labels: [enhancement]
 body:
   - type: textarea
     id: what
     attributes:
       label: What you would like
-      description: What you are trying to do, and what Beamer would need to do for it.
+      description: What you are trying to do, and what Scotty would need to do for it.
     validations:
       required: true
   - type: textarea

@@ -1,11 +1,12 @@
 # Security
 
-Beamer sends your keystrokes, pointer and clipboard between machines, so the link between them
-matters. This is what it protects, what it does not, and how to report a problem.
+Scotty sends your keystrokes, pointer, clipboard and files between PCs, so the link between them
+matters. The keyboard, pointer and clipboard link comes from Beamer, unchanged; files and head turn
+are Scotty's. This is what it protects, what it does not, and how to report a problem.
 
 ## What the link protects
 
-- **Every frame is encrypted and authenticated.** Beamer 1.5.0 uses wire version 6. Each connection
+- **Every frame is encrypted and authenticated.** The link (Beamer 1.5.0 and later, so Scotty too) uses wire version 6. Each connection
   exchanges fresh X25519 public keys and random nonce prefixes. The two directions get separate
   keys, derived with HKDF-SHA256 from the shared token and the X25519 result. PyNaCl provides
   X25519 and ChaCha20-Poly1305 through libsodium; HKDF-SHA256 uses Python's standard library.
@@ -23,11 +24,11 @@ matters. This is what it protects, what it does not, and how to report a problem
   after a minute. The exchange is written out in [PAIRING.md](PAIRING.md).
 - **Traffic stays on your network.** Paired machines talk directly. There is no account, relay
   server or telemetry. The update check makes an ordinary HTTPS request to GitHub's public releases
-  API once a day; it sends no Beamer data, though GitHub sees the address the request comes from.
+  API once a day; it sends no Scotty data, though GitHub sees the address the request comes from.
   Check for updates on Overview turns it off. Windows firewall rules apply to Private networks
   only.
 - **Unauthenticated connections are limited.** A peer has five seconds and a 4KB first frame to
-  authenticate, and Beamer holds only a small number of unauthenticated connections at once.
+  authenticate, and Scotty holds only a small number of unauthenticated connections at once.
 
 ## Files (Scotty)
 
@@ -96,19 +97,19 @@ section 11; code: `core/filechannel.py`.
 
 ## What it does not protect against
 
-- **Someone on your network can see that Beamer is running.** Machines announce their name and
+- **Someone on your network can see that Scotty is running.** Machines announce their name and
   connection port on the local network. Anyone on that network can try to reach the pairing
   service while a code is on screen.
 - **Someone on your network can interrupt pairing.** A failed attempt can use up the displayed
   code, so you may need to show a new one. The attempt does not reveal the code or let the person
   join the pair.
 - **Pairing does not prove a machine's network address.** The address comes from local discovery,
-  which another machine on the network can imitate. That can stop a connection or point Beamer at
+  which another machine on the network can imitate. That can stop a connection or point Scotty at
   the wrong address, but the encrypted link still requires the paired token.
 - **A machine with the token is trusted.** It can type and click in applications that accept
-  synthetic input on the paired machine. On Windows, Beamer runs elevated so it can reach elevated
+  synthetic input on the paired machine. When installed, Scotty runs elevated so it can reach elevated
   windows; it cannot control the secure desktop. Treat the token like a password.
-- **Malware on either machine.** Software that can read your keyboard or Beamer's local settings
+- **Malware on either machine.** Software that can read your keyboard or Scotty's local settings
   can already act as you or the paired machine.
 - **Traffic analysis.** Encryption hides the contents, not when machines talk or the size and timing
   of frames. The protocol version and a stable key identifier for the pair are sent in the clear,
@@ -116,8 +117,8 @@ section 11; code: `core/filechannel.py`.
 - **A paired PC can send you files.** Within your size limit, into the holding folder, marked as
   from another computer; it cannot place them anywhere else or run them. The sizes and timing of a
   file transfer are visible on the network, not its names or contents.
-- **Old Beamer versions cannot connect to 1.5.0.** Version 1.5.0 uses wire version 6; Beamer 1.4.x
-  uses version 5. Update both ends and pair the machines again.
+- **Beamer older than 1.5.0 cannot connect.** Scotty and Beamer 1.5.0 and later use wire version 6;
+  Beamer 1.4.x uses version 5. Update both ends and pair the machines again.
 
 ## Reporting a vulnerability
 
@@ -126,4 +127,4 @@ changed, use the Security tab on [github.com/vjbuildswitai/Scotty](https://githu
 For the link and pairing themselves, which come from Beamer, on
 [github.com/kalkman-code/beamer](https://github.com/kalkman-code/beamer), open the Security tab and
 choose Report a vulnerability. Say what you found, how to reproduce it, and which version and
-platform. Beamer is made by one person, so there is no fixed response time.
+platform. Scotty and Beamer are each made by one person, so there is no fixed response time.

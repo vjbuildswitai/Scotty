@@ -122,8 +122,11 @@ five-minute manual check on two PCs is in [TESTING.md](TESTING.md).
 
 ## Credits and licence
 
-Scotty is a fork of [Beamer](https://github.com/kalkman-code/beamer) 1.5.21 by Toby George Read
-Kalkman (Kalkman Code), and like Beamer is free software under the
-[GNU General Public License version 3](LICENSE). Scotty's changes are listed in
-[CHANGELOG.md](CHANGELOG.md). Scotty and Beamer can be installed side by side but not run at the
+Scotty is made by Vijayaraj Anandan and built on [Beamer](https://github.com/kalkman-code/beamer)
+1.5.21 by Toby George Read Kalkman (Kalkman Code). Like Beamer it is free software under the
+[GNU General Public License version 3](LICENSE); copyright for both is in [NOTICE.md](NOTICE.md).
+Scotty's changes are listed in [CHANGELOG.md](CHANGELOG.md). The `mac_app` and `flatpak` folders
+are Beamer's, kept so upstream fixes still merge; Scotty ships for Windows only. To report a
+problem or help, see [CONTRIBUTING.md](CONTRIBUTING.md); signed releases are explained in
+[CODE-SIGNING.md](CODE-SIGNING.md). Scotty and Beamer can be installed side by side but not run at the
 same time (they use the same ports); each keeps its own settings and pairings.

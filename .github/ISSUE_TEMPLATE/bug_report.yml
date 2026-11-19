@@ -1,31 +1,43 @@
 name: Bug report
-description: Something in Beamer is not working as it should.
+description: Something in Scotty is not working as it should.
 labels: [bug]
 body:
   - type: input
-    id: beamer-version
+    id: scotty-version
     attributes:
-      label: Beamer version
-      description: Shown in About Beamer on each machine. Say if they differ.
-      placeholder: "1.5.0"
+      label: Scotty version
+      description: Shown at the bottom left of the settings window, or About in the tray menu. Say if the PCs differ.
+      placeholder: "1.0.0"
     validations:
       required: true
   - type: textarea
     id: machines
     attributes:
-      label: Each machine's operating system and version
-      description: One line per machine you use with Beamer.
+      label: Each PC's Windows version
+      description: One line per PC, and which one has the keyboard and mouse plugged in.
       placeholder: |
-        MacBook: macOS 26.1
-        Desktop: Windows 11 24H2
-        Laptop: Fedora 44, GNOME on Wayland
+        Laptop 1 (keyboard and mouse): Windows 11 25H2
+        Laptop 2: Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Moving the pointer and keyboard between PCs
+        - Copying files between PCs
+        - Head turn
+        - Pairing or setup
+        - Clipboard text or images
+        - Something else
     validations:
       required: true
   - type: textarea
     id: did
     attributes:
       label: What you did
-      description: The steps, and which machine was driving which.
+      description: The steps, and which PC was driving which.
     validations:
       required: true
   - type: textarea
@@ -45,6 +57,5 @@ body:
     attributes:
       label: Logs
       description: |
-        Attach Beamer.log from each machine, or paste the lines from around the time it went wrong. Open log folder in Beamer's menu shows where it is.
-        On Linux, the file is ~/.config/Beamer/Beamer.log; on Flatpak, it is ~/.var/app/uk.co.kalkman.beamer/config/Beamer/Beamer.log.
-        The log holds your machines' names and local network addresses; remove them if you would rather not share them.
+        Attach Scotty.log from each PC (tray menu, Open log folder), or paste the lines from around the time it went wrong.
+        The log holds your PCs' names and local network addresses; remove them if you would rather not share them. It never holds file contents or camera images.
