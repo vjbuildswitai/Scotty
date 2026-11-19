@@ -20,6 +20,11 @@ Based on Beamer 1.5.21.
   a cleaner that only ever touches folders Scotty made. Reviewed independently before release;
   see SECURITY.md.
 - The Files settings stack cleanly in a narrow window and in longer translations.
+- **Switch PCs by turning your head** (optional, off by default): the webcam of the PC with the
+  keyboard sees which screen you face; a ten-second calibration; never switches while you type;
+  no picture saved or sent; pause from the tray.
+- The exe carries Scotty's name and version; a code signing policy and a release workflow ready
+  for SignPath.
 - **Portable passphrase** protection raised to Argon2id moderate; older portable folders upgrade on
   first unlock.
 - Its own name, icon, version, install folder, settings, sign-in task, firewall rules and update
