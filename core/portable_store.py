@@ -13,9 +13,16 @@ from nacl.secret import SecretBox
 from nacl.utils import random
 
 
-_MAGIC = b"BEAMER-PORTABLE\x00\x01"
-KDF_OPSLIMIT = argon2id.OPSLIMIT_INTERACTIVE
-KDF_MEMLIMIT = argon2id.MEMLIMIT_INTERACTIVE
+# Fork (Scotty): version 2 derives the key at Argon2id's moderate strength (256 MiB a guess), about
+# four times the work of version 1's interactive strength for anyone guessing a lost folder's
+# passphrase. A version 1 vault still opens with its own strength and is rewritten as version 2.
+# The cost belongs to the version, never to the file, so a crafted vault cannot lower it.
+_MAGIC_V1 = b"BEAMER-PORTABLE\x00\x01"
+_MAGIC = b"BEAMER-PORTABLE\x00\x02"
+KDF_OPSLIMIT = argon2id.OPSLIMIT_MODERATE
+KDF_MEMLIMIT = argon2id.MEMLIMIT_MODERATE
+KDF_OPSLIMIT_V1 = argon2id.OPSLIMIT_INTERACTIVE
+KDF_MEMLIMIT_V1 = argon2id.MEMLIMIT_INTERACTIVE
 MAX_STATE_BYTES = 1024 * 1024
 MAX_ENVELOPE_BYTES = (len(_MAGIC) + argon2id.SALTBYTES + SecretBox.NONCE_SIZE
                       + SecretBox.MACBYTES + MAX_STATE_BYTES)
@@ -112,8 +119,9 @@ class PortableStore:
                 raise ValueError("Passphrase must contain 1 to 1024 UTF-8 bytes")
             if self.exists:
                 envelope = self._read_envelope()
+                version = 1 if envelope.startswith(_MAGIC_V1) else 2
                 salt = envelope[len(_MAGIC):len(_MAGIC) + argon2id.SALTBYTES]
-                key = self._derive(password, salt)
+                key = self._derive(password, salt, version)
                 try:
                     encrypted = envelope[len(_MAGIC) + argon2id.SALTBYTES:]
                     data = _decode(SecretBox(bytes(key)).decrypt(encrypted))
@@ -121,6 +129,17 @@ class PortableStore:
                     key[:] = b"\x00" * len(key)
                     raise PortableStoreUnlockError(
                         "Unable to unlock portable settings; check the passphrase and vault") from exc
+                if version == 1:
+                    # Upgrade in place: a fresh salt and the stronger key, the same settings. A
+                    # folder that cannot be written right now (read-only media) still unlocks:
+                    # the next successful save writes version 2 with this key.
+                    key[:] = b"\x00" * len(key)
+                    salt = random(argon2id.SALTBYTES)
+                    key = self._derive(password, salt)
+                    try:
+                        self._save(_encode(data), key, salt)
+                    except OSError:
+                        pass
             else:
                 salt = random(argon2id.SALTBYTES)
                 key = self._derive(password, salt)
@@ -133,10 +152,10 @@ class PortableStore:
             self._key, self._salt, self._data = key, salt, data
 
     @staticmethod
-    def _derive(password, salt):
-        # The envelope carries no attacker-controlled KDF cost parameters.
-        return bytearray(argon2id.kdf(SecretBox.KEY_SIZE, password, salt,
-                                    opslimit=KDF_OPSLIMIT, memlimit=KDF_MEMLIMIT))
+    def _derive(password, salt, version=2):
+        # The envelope carries no attacker-controlled KDF cost parameters: the version fixes them.
+        opslimit, memlimit = (KDF_OPSLIMIT_V1, KDF_MEMLIMIT_V1) if version == 1 else (KDF_OPSLIMIT, KDF_MEMLIMIT)
+        return bytearray(argon2id.kdf(SecretBox.KEY_SIZE, password, salt, opslimit=opslimit, memlimit=memlimit))
 
     def _read_envelope(self):
         try:
@@ -151,7 +170,7 @@ class PortableStore:
                 envelope = stream.read(MAX_ENVELOPE_BYTES + 1)
             minimum = (len(_MAGIC) + argon2id.SALTBYTES + SecretBox.NONCE_SIZE
                        + SecretBox.MACBYTES + 2)
-            if not minimum <= len(envelope) <= MAX_ENVELOPE_BYTES or not envelope.startswith(_MAGIC):
+            if not minimum <= len(envelope) <= MAX_ENVELOPE_BYTES or not envelope.startswith((_MAGIC, _MAGIC_V1)):
                 raise ValueError("Invalid or unsupported vault")
             return envelope
         except (OSError, ValueError) as exc:
