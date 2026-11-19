@@ -1,7 +1,7 @@
 # Plan: security hardening, the drop folder, and the SDLC kit (2026-11-19)
 
 Branch: `feat/scotty-rename` (already holds the rename, brand, update-check and WIP progress commits).
-Status: waiting for VJ's OK. No code until then.
+Status: done (approved by VJ in chat; merged to main in PR #1, 2026-11-19).
 
 ## 1. Apply the SDLC kit first
 - `node D:/Projects/sdlc-kit/apply.js --repo D:/Projects/Beamer --base file-transfer --protected file-transfer,main --verify "bash scripts/verify.sh"`.

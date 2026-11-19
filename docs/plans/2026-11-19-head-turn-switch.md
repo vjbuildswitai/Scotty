@@ -1,8 +1,8 @@
 # Plan: Switch PCs by turning your head
 
 - Track: scotty-head-turn
-- Status: draft
-- Approved by VJ: -
+- Status: approved
+- Approved by VJ: 2026-11-19 (chat)
 - Branch: feat/scotty-1.1   PR: -
 
 ## Goal

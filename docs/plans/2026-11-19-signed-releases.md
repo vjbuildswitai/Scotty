@@ -1,8 +1,8 @@
 # Plan: Signed releases, no "unknown publisher"
 
 - Track: scotty-release
-- Status: draft
-- Approved by VJ: -
+- Status: approved
+- Approved by VJ: 2026-11-19 (chat)
 - Branch: feat/scotty-1.1   PR: -
 
 ## Goal
@@ -37,7 +37,7 @@ signed zip/installer on GitHub for people who do not use the Store.
    Certum; signing runs on his laptop through SimplySign (key stays in Certum's cloud HSM), never in
    CI and never in this repository.
 
-Recommendation: 1 + 2, both free. 3 only if VJ wants his own name as publisher on GitHub downloads.
+Chosen (VJ, 2026-11-19): 1 + 2, both free.
 
 ## Files that change
 - `win_app/msix/AppxManifest.xml`, `win_app/msix/Assets/*` (tiles from `Scotty.svg`) - new.
@@ -58,8 +58,8 @@ Recommendation: 1 + 2, both free. 3 only if VJ wants his own name as publisher o
 2. MSIX packaging + packaged-mode detection + tests; local install of a test-signed MSIX on both laptops.
 3. Store submission (VJ clicks submit in Partner Center; certification takes 1-3 days).
 4. SignPath workflow once accepted (acceptance can take weeks).
-5. Until then: 1.0.0 goes out as is, unsigned, with the README saying so and how to check the
-   SHA-256.
+5. Nothing is published until it is signed (VJ, 2026-11-19). The two-laptop test uses the
+   unsigned local build.
 
 ## Tests that prove it
 - `bash scripts/verify.sh` green.

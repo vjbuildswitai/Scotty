@@ -1,8 +1,8 @@
 # Plan: Easy first run and a friendlier window
 
 - Track: scotty-ux
-- Status: draft
-- Approved by VJ: -
+- Status: approved
+- Approved by VJ: 2026-11-19 (chat)
 - Branch: feat/scotty-1.1   PR: -
 
 ## Goal
