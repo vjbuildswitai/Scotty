@@ -26,9 +26,9 @@ from core.tests import responder_harness as h
 
 PASSWORD = 'Synthetic portable passphrase'
 VERSION = '1.5.11'
-PAGE = 'https://github.com/kalkman-code/beamer/releases/tag/v1.5.11'
-DOWNLOAD = ('https://github.com/kalkman-code/beamer/releases/download/v1.5.11/'
-            'Beamer-Portable-1.5.11-windows-x64.zip')
+PAGE = 'https://github.com/vjbuildswitai/Scotty/releases/tag/v1.5.11'
+DOWNLOAD = ('https://github.com/vjbuildswitai/Scotty/releases/download/v1.5.11/'
+            'Scotty-Portable-1.5.11-windows-x64.zip')
 
 
 class PortableTests(unittest.TestCase):
@@ -326,7 +326,7 @@ class PortableTests(unittest.TestCase):
         owner.pairing.start.assert_called_once()
         owner._set_status.assert_called_once()
         self.assertEqual(owner._set_status.call_args.args[0], kvm.ServerState.ERROR)
-        self.assertIn('Another Beamer copy controls input', owner._set_status.call_args.args[1])
+        self.assertIn('Another Scotty copy controls input', owner._set_status.call_args.args[1])
         retry.assert_called_once_with(1000, owner._listen)
         for blocked in (owner._start_receiver, owner._start_sending, owner._make_idle_pointer, injector):
             blocked.assert_not_called()
@@ -423,7 +423,7 @@ class PortableTests(unittest.TestCase):
 
     def test_download_opens_portable_asset_and_notes_keep_release_page(self):
         payload = {'tag_name': 'v' + VERSION, 'html_url': PAGE,
-                   'assets': [{'name': 'Beamer-Portable-' + VERSION + '-windows-x64.zip',
+                   'assets': [{'name': 'Scotty-Portable-' + VERSION + '-windows-x64.zip',
                                'browser_download_url': DOWNLOAD}]}
         checker = updates.Checker('1.5.10', lambda: True, lambda result: None,
                                   fetcher=lambda: json.dumps(payload).encode(), portable=True)
@@ -439,7 +439,7 @@ class PortableTests(unittest.TestCase):
 
     def test_flatpak_never_opens_portable_zip_directly(self):
         payload = {'tag_name': 'v' + VERSION, 'html_url': PAGE,
-                   'assets': [{'name': 'Beamer-Portable-' + VERSION + '-windows-x64.zip',
+                   'assets': [{'name': 'Scotty-Portable-' + VERSION + '-windows-x64.zip',
                                'browser_download_url': DOWNLOAD}]}
         checker = updates.Checker('1.5.10', lambda: True, lambda result: None,
                                   fetcher=lambda: json.dumps(payload).encode(), portable=True)

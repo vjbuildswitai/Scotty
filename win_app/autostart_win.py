@@ -20,7 +20,7 @@ from typing import Callable, Optional
 from xml.sax.saxutils import escape
 import xml.etree.ElementTree as ET
 
-from core import windows_tools
+from core import brand, windows_tools
 from core import portable_runtime
 
 TASK_PREFIX = "Scotty-"
@@ -187,7 +187,7 @@ def migrate_legacy_task(run: Runner = _run, user: Optional[str] = None) -> None:
     if portable_runtime.enabled():
         return
     user = user or current_user()
-    root = _task_root("Scotty", run)
+    root = _task_root(brand.NAME, run)
     if root is None:
         return
     ns = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
@@ -267,11 +267,11 @@ def set_enabled(enabled: bool, exe: str, user: Optional[str] = None, run: Runner
 def remove_legacy_task(run: Runner = _run, *, disable_first: bool = False) -> None:
     if portable_runtime.enabled():
         return
-    if run(["schtasks", "/query", "/tn", "Scotty"]).returncode == 0:
+    if run(["schtasks", "/query", "/tn", brand.NAME]).returncode == 0:
         if disable_first:
-            result = run(["schtasks", "/change", "/tn", "Scotty", "/disable"])
+            result = run(["schtasks", "/change", "/tn", brand.NAME, "/disable"])
             if result.returncode != 0:
                 raise OSError((result.stderr or result.stdout or "schtasks failed").strip())
-        result = run(["schtasks", "/delete", "/tn", "Scotty", "/f"])
+        result = run(["schtasks", "/delete", "/tn", brand.NAME, "/f"])
         if result.returncode != 0:
             raise OSError((result.stderr or result.stdout or "schtasks failed").strip())

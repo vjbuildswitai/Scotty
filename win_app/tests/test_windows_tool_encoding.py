@@ -57,7 +57,7 @@ class WindowsToolEncodingTests(unittest.TestCase):
             roaming = profile / "AppData" / "Roaming"
             with patch.dict(os.environ, {"USERPROFILE": str(profile), "APPDATA": str(roaming), "LOCALAPPDATA": str(local)}):
                 path = app_config.default_config_path()
-                self.assertEqual(path, local / "Beamer" / "settings.json")
+                self.assertEqual(path, local / "Scotty" / "settings.json")
                 config = app_config.default_config()
                 config.edge_glow = False
                 app_config.save_config(path, config)
@@ -66,7 +66,7 @@ class WindowsToolEncodingTests(unittest.TestCase):
                 previous_handlers, previous_level = list(root.handlers), root.level
                 try:
                     with patch.object(kvm_bridge_win, "LOG_PATH", None):
-                        self.assertEqual(kvm_bridge_win.configure_logging(), path.with_name("Beamer.log"))
+                        self.assertEqual(kvm_bridge_win.configure_logging(), path.with_name("Scotty.log"))
                         root.info("Élodie: %s", path)
                 finally:
                     for handler in list(root.handlers):
@@ -75,7 +75,7 @@ class WindowsToolEncodingTests(unittest.TestCase):
                             root.removeHandler(handler)
                             handler.close()
                     root.setLevel(previous_level)
-                self.assertIn("Élodie", path.with_name("Beamer.log").read_text(encoding="utf-8"))
+                self.assertIn("Élodie", path.with_name("Scotty.log").read_text(encoding="utf-8"))
 
     def test_firewall_powershell_refusal_preserves_localised_text(self):
         with self.assertRaisesRegex(RuntimeError, "Échec"):

@@ -48,8 +48,8 @@ class PagesWinTest(unittest.TestCase):
 
     def test_the_footer_drops_apply_as_you_go_on_connection(self):
         self.assertEqual(pages_win.footer("design"),
-                         "Changes apply as you make them. Closing this window keeps Beamer running in the tray.")
-        self.assertEqual(pages_win.footer("connection"), "Closing this window keeps Beamer running in the tray.")
+                         "Changes apply as you make them. Closing this window keeps Scotty running in the tray.")
+        self.assertEqual(pages_win.footer("connection"), "Closing this window keeps Scotty running in the tray.")
 
     def test_every_page_has_a_name_and_purpose(self):
         for key, name, purpose in pages_win.PAGES:

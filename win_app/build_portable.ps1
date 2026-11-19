@@ -13,11 +13,15 @@ $ProjectDir = Split-Path -Parent $ScriptDir
 $DistDir = Join-Path $ScriptDir 'dist\portable'
 $WorkDir = Join-Path $ScriptDir 'build\portable'
 $Payload = Join-Path $DistDir 'Scotty-portable'
-$Version = (Get-Content (Join-Path $ProjectDir 'VERSION') -Raw).Trim()
-if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$') { throw 'VERSION is not a supported Beamer version' }
+# The archive carries Scotty's own version (core/brand.py), the one update checks look for; the
+# repository VERSION file stays upstream's, which is what peers see on the wire.
+$BrandLine = Select-String -Path (Join-Path $ProjectDir 'core\brand.py') -Pattern '^VERSION = "([^"]+)"$' | Select-Object -First 1
+if (-not $BrandLine) { throw 'core\brand.py has no VERSION line' }
+$Version = $BrandLine.Matches[0].Groups[1].Value
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$') { throw 'core\brand.py VERSION is not a supported version' }
 if (-not $OutputDirectory) { $OutputDirectory = $DistDir }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
-$Archive = Join-Path $OutputDirectory "Beamer-Portable-$Version-windows-x64.zip"
+$Archive = Join-Path $OutputDirectory "Scotty-Portable-$Version-windows-x64.zip"
 
 Push-Location $ScriptDir
 try {

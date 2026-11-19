@@ -111,7 +111,7 @@ class ShortcutMachineTests(unittest.TestCase):
 
         requests[0][1]()
 
-        self.assertEqual(rig.alerts, ["Cannot switch — the desktop did not let Beamer send input to Bee"])
+        self.assertEqual(rig.alerts, ["Cannot switch — the desktop did not let Scotty send input to Bee"])
 
     def test_no_push_out_keeps_the_existing_wayland_alert(self):
         rig = self.rig(up=(B, C))

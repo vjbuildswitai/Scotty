@@ -266,7 +266,7 @@ if ($script:restarted.Count -ne 1 -or $script:restarted[0] -ne 'GameInputSvc') {
 $script:removedTasks = @()
 $script:removedRules = @()
 function Resolve-BeamerUserSid($Identity) { return $Identity }
-function Get-ScheduledTask { param($TaskPath, $ErrorAction) return [pscustomobject]@{ TaskName='Beamer'; TaskPath='\' } }
+function Get-ScheduledTask { param($TaskPath, $ErrorAction) return [pscustomobject]@{ TaskName='Scotty'; TaskPath='\' } }
 function Export-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction)
     return '<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-21-123</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Actions><Exec><Command>C:\Beamer\Scotty.exe</Command></Exec></Actions></Task>'
 }
@@ -280,7 +280,7 @@ function Get-NetFirewallApplicationFilter { param([Parameter(ValueFromPipeline=$
 function Remove-NetFirewallRule { param([Parameter(ValueFromPipeline=$true)]$InputObject) process { $script:removedRules += $InputObject.Name } }
 Update-BeamerAutostart -ExePath 'C:\Beamer\Scotty.exe' -UserSid 'S-1-5-21-123' -Remove
 Remove-BeamerFirewall -ExePath 'C:\Beamer\Scotty.exe'
-if ($script:removedTasks.Count -ne 1 -or $script:removedTasks[0] -ne 'Beamer') { throw 'Matching task was not removed' }
+if ($script:removedTasks.Count -ne 1 -or $script:removedTasks[0] -ne 'Scotty') { throw 'Matching task was not removed' }
 if ($script:removedRules.Count -ne 4 -or @($script:removedRules | Where-Object { $_ -ne 'ours' }).Count) { throw 'Removed another install firewall rule' }
 ''')
 
