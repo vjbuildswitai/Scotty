@@ -60,6 +60,8 @@ if _IS_WINDOWS:
     kernel32.GlobalSize.argtypes = [ctypes.c_void_p]
     user32.GetClipboardSequenceNumber.restype = ctypes.c_uint32
     user32.GetClipboardSequenceNumber.argtypes = []
+    user32.RegisterClipboardFormatW.restype = ctypes.c_uint
+    user32.RegisterClipboardFormatW.argtypes = [ctypes.c_wchar_p]
     user32.CreateWindowExW.restype = ctypes.c_void_p
     user32.CreateWindowExW.argtypes = [
         ctypes.c_uint32, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32,
@@ -438,6 +440,8 @@ def set_contents(text: Optional[str], png: Optional[bytes]) -> bool:
 # Scotty always copies and never deletes anything on the machine the files came from.
 
 CF_HDROP = 15
+PREFERRED_DROP_EFFECT = "Preferred DropEffect"
+DROPEFFECT_MOVE = 2
 DROPFILES_SIZE = 20
 HDROP_MAX_PATHS = 10000
 HDROP_MAX_BYTES = 16 * 1024 * 1024
@@ -533,8 +537,14 @@ def _get_files(win32, mem32, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RETRY_DELA
     return paths
 
 
-def _set_files(win32, mem32, paths, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RETRY_DELAY_SECONDS, sleep=time.sleep, written=None):
+def _set_files(win32, mem32, paths, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RETRY_DELAY_SECONDS, sleep=time.sleep, written=None,
+               move=False):
     block = build_hdrop(paths)
+    # Explorer's Cut writes this beside CF_HDROP; paste then moves the files instead of copying
+    # them, so received files leave the drop folder as they are pasted (one copy, not two).
+    effect_format = win32.RegisterClipboardFormatW(PREFERRED_DROP_EFFECT) if move else 0
+    if move and not effect_format:
+        LOGGER.warning("could not register the drop effect format; pasting will copy")
     owner = win32.CreateWindowExW(0, "STATIC", None, 0, 0, 0, 0, 0, -3, None, None, None)
     if not owner:
         LOGGER.warning("could not create the clipboard owner")
@@ -547,6 +557,8 @@ def _set_files(win32, mem32, paths, attempts=OPEN_RETRY_ATTEMPTS, delay=OPEN_RET
             if not win32.EmptyClipboard():
                 return False
             wrote = _put_clipboard_data(win32, mem32, CF_HDROP, block)
+            if wrote and effect_format:
+                _put_clipboard_data(win32, mem32, effect_format, struct.pack("<I", DROPEFFECT_MOVE))
             if wrote and written is not None:
                 written(win32.GetClipboardSequenceNumber())
             return wrote
@@ -569,10 +581,11 @@ def get_files():
         return None
 
 
-def set_files(paths) -> bool:
+def set_files(paths, move=False) -> bool:
     """Replace the Windows clipboard with `paths` as copied files, so Ctrl+V in Explorer pastes
-    them. Counts as written from a peer, like set_contents, so it is never sent back. Returns
-    False off Windows or when the write failed. Never raises."""
+    them; with `move`, marked as Cut is, so the paste moves them rather than copying. Counts as
+    written from a peer, like set_contents, so it is never sent back. Returns False off Windows or
+    when the write failed. Never raises."""
     if not _IS_WINDOWS:
         return False
     def remember(sequence):
@@ -580,7 +593,7 @@ def set_files(paths) -> bool:
         _synced_sequence = _written_sequence = sequence
     try:
         with _LOCK:
-            return _set_files(user32, kernel32, paths, written=remember)
+            return _set_files(user32, kernel32, paths, written=remember, move=move)
     except Exception:
         LOGGER.exception("failed to put received files on the Windows clipboard")
         return False

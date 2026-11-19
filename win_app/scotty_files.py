@@ -37,6 +37,8 @@ class FilesBridge:
         self._offered = None            # (paths, change stamp, Offer) of the last offer
         self._cancel = None             # the running fetch's cancel event
         self._generation = 0
+        self._pending = None            # the newest manifest waiting for the worker
+        self._worker = None
 
     # Settings and lifetime
 
@@ -67,9 +69,19 @@ class FilesBridge:
             self._tell("refused", tr("Scotty cannot send files"),
                        tr("Port {port} is in use by another program, so copied files will not follow the pointer.").format(port=self._port))
             return False
+        server.on_progress = self._on_sending
         with self._lock:
             self._server = server
+        self.tidy()
         return True
+
+    def tidy(self) -> None:
+        """Clear what was received and never pasted, after the days the settings keep it."""
+        settings = self.settings
+        try:
+            filechannel.clean_drop_folder(settings["drop_folder"], settings.get("keep_days", 7))
+        except Exception:
+            LOGGER.exception("Could not tidy the drop folder")
 
     def stop(self) -> None:
         with self._lock:
@@ -97,6 +109,10 @@ class FilesBridge:
             limit = self._settings["max_bytes"]
         if not enabled or server is None:
             return None
+        if not host:
+            # Fail closed: an offer is only ever served to the one peer's address.
+            LOGGER.warning("Not offering copied files: the other machine's address is unknown")
+            return None
         paths = self._clipboard.get_files()
         if not paths:
             return None
@@ -104,7 +120,8 @@ class FilesBridge:
         with self._lock:
             offered = self._offered
         if (offered is not None and offered[0] == paths and offered[1] == stamp and offered[2].allowed_host == host
-                and self._clock() - offered[2].made_at < filechannel.OFFER_SECONDS - 30):
+                and self._clock() - offered[2].made_at < filechannel.OFFER_SECONDS - 30
+                and server.has_offer(offered[2].transfer)):
             offer = offered[2]
         else:
             try:
@@ -142,16 +159,41 @@ class FilesBridge:
                 self._cancel.set()
             cancel = self._cancel = threading.Event()
             self._generation += 1
-            generation = self._generation
-            settings = dict(self._settings)
-        threading.Thread(target=self._receive, args=(host, read, settings, cancel, generation),
-                         name="scotty-files-fetch", daemon=True).start()
+            # One worker, newest first: a peer sending manifest after manifest only ever replaces
+            # the one waiting, so threads and fetches never pile up.
+            self._pending = (host, read, dict(self._settings), cancel, self._generation)
+            if self._worker is None:
+                self._worker = threading.Thread(target=self._work, name="scotty-files-fetch", daemon=True)
+                self._worker.start()
+
+    def _work(self):
+        while True:
+            with self._lock:
+                job, self._pending = self._pending, None
+                if job is None:
+                    self._worker = None
+                    return
+            self._receive(*job)
 
     def cancel(self) -> None:
+        """Stop what is arriving and what is being sent."""
         with self._lock:
-            cancel = self._cancel
+            cancel, server = self._cancel, self._server
         if cancel is not None:
             cancel.set()
+        if server is not None:
+            server.cancel_sends()
+
+    def _on_sending(self, offer, state, sent):
+        what = _describe({"count": offer.count, "names": offer.names, "total_bytes": offer.total_bytes})
+        if state == "sending":
+            self._tell("sending", tr("Sending {what}").format(what=what), tr("The other PC is fetching them."),
+                       done_bytes=sent, total_bytes=offer.total_bytes)
+        elif state == "sent":
+            self._tell("sent", tr("{what} sent").format(what=_first_upper(what)), tr("The other PC has them."))
+        else:
+            self._tell("stopped", tr("{what} was not sent in full").format(what=_first_upper(what)),
+                       tr("The transfer was cancelled or the connection was lost. Copy them again to retry."))
 
     @property
     def busy(self) -> bool:
@@ -170,8 +212,15 @@ class FilesBridge:
             self._tell("receiving", tr("Receiving {what}").format(what=what), path or "", done_bytes=done, total_bytes=total)
 
         try:
+            unmarked = []
+
+            def mark(path):
+                if not filechannel.mark_from_another_computer(path):
+                    unmarked.append(path)
+
             landed = self._fetch(host, read, settings["drop_folder"], settings["max_bytes"],
-                                 progress=progress, cancel=cancel)
+                                 progress=progress, cancel=cancel,
+                                 mark=mark if settings.get("mark_received", True) else None)
         except filechannel.TransferCancelled:
             if self._current(generation):
                 self._tell("cancelled", tr("Transfer cancelled"), tr("{what} did not arrive; nothing was kept.").format(what=_first_upper(what)))
@@ -187,15 +236,20 @@ class FilesBridge:
             with self._lock:
                 if self._generation == generation:
                     self._cancel = None
+        self.tidy()
         if not self._current(generation):
             return
-        if not self._clipboard.set_files(landed):
+        # Marked as Cut: pasting moves them out of the drop folder, so only one copy remains.
+        if not self._clipboard.set_files(landed, move=True):
             self._tell("done", tr("{what} arrived").format(what=_first_upper(what)),
                        tr("They are in {folder}. They could not be put on the clipboard; open the folder to use them.").format(
                            folder=settings["drop_folder"]), folder=settings["drop_folder"])
             return
-        self._tell("done", tr("{what} arrived").format(what=_first_upper(what)), tr("Press Ctrl+V in any folder to paste."),
-                   folder=settings["drop_folder"])
+        message = tr("Press Ctrl+V in any folder to move them there.")
+        if unmarked:
+            message += " " + tr("This drive cannot mark them as from another computer, so Windows will not warn "
+                                "before a received program runs.")
+        self._tell("done", tr("{what} arrived").format(what=_first_upper(what)), message, folder=settings["drop_folder"])
 
     def _current(self, generation):
         with self._lock:

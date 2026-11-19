@@ -4484,6 +4484,10 @@ msgid "Open"
 msgstr "Apri"
 
 #: win_app/kvm_bridge_win.py
+msgid "Mark received files as from another computer"
+msgstr "Segna i file ricevuti come provenienti da un altro computer"
+
+#: win_app/kvm_bridge_win.py
 msgid "Where received files go"
 msgstr "Dove vanno i file ricevuti"
 
@@ -4720,6 +4724,18 @@ msgstr "I file ricevuti vanno in"
 #: win_app/kvm_bridge_win.py
 msgid "Largest transfer, in GB"
 msgstr "Trasferimento massimo, in GB"
+
+#: win_app/kvm_bridge_win.py
+msgid "Clear files not pasted after, in days (0 keeps them)"
+msgstr "Elimina i file non incollati dopo, in giorni (0 li tiene)"
+
+#: win_app/kvm_bridge_win.py
+msgid "Pasting moves received files out of that folder, so only one copy is left."
+msgstr "Incollare sposta i file ricevuti fuori da quella cartella, così ne resta una sola copia."
+
+#: win_app/kvm_bridge_win.py
+msgid "Windows then asks before a received program runs, and Office opens received documents in Protected View."
+msgstr "Così Windows chiede conferma prima di eseguire un programma ricevuto, e Office apre i documenti ricevuti in Visualizzazione protetta."
 
 #: win_app/kvm_bridge_win.py
 msgid "Applies to files this PC sends and receives. Turning files on or off takes effect for the other machine when the link next connects."
@@ -5452,20 +5468,28 @@ msgid "This PC's keyboard and pointer are on {name}. Do the same again to bring 
 msgstr "La tastiera e il puntatore di questo PC sono su {name}. Ripeti la stessa azione per riportarli a casa."
 
 #: win_app/portable_entry.py
-msgid "Beamer Portable needs its Beamer.portable marker and a writable folder beside the app. Move the whole folder to writable storage and try again."
-msgstr "Beamer Portable richiede il marcatore Beamer.portable e una cartella scrivibile accanto all'app. Sposta l'intera cartella in un percorso scrivibile e riprova."
+msgid "Beamer Portable needs its Scotty.portable marker and a writable folder beside the app. Move the whole folder to writable storage and try again."
+msgstr "Beamer Portable richiede il marcatore Scotty.portable e una cartella scrivibile accanto all'app. Sposta l'intera cartella in un percorso scrivibile e riprova."
 
 #: win_app/portable_entry.py
 msgid "Beamer Portable"
 msgstr "Beamer Portable"
 
 #: win_app/scotty_files.py
-msgid "Press Ctrl+V in any folder to paste."
-msgstr "Premi Ctrl+V in una cartella qualsiasi per incollarli."
+msgid "Press Ctrl+V in any folder to move them there."
+msgstr "Premi Ctrl+V in una cartella qualsiasi per spostarli lì."
 
 #: win_app/scotty_files.py
 msgid "Copied files were not sent"
 msgstr "I file copiati non sono stati inviati"
+
+#: win_app/scotty_files.py
+msgid "The other PC is fetching them."
+msgstr "L'altro PC li sta scaricando."
+
+#: win_app/scotty_files.py
+msgid "This drive cannot mark them as from another computer, so Windows will not warn before a received program runs."
+msgstr "Questa unità non può contrassegnarli come provenienti da un altro computer, quindi Windows non avviserà prima di avviare un programma ricevuto."
 
 #: win_app/scotty_files.py
 #, python-brace-format
@@ -5487,6 +5511,14 @@ msgid "Scotty cannot send files"
 msgstr "Scotty non può inviare file"
 
 #: win_app/scotty_files.py
+msgid "The other PC has them."
+msgstr "L'altro PC li ha ricevuti."
+
+#: win_app/scotty_files.py
+msgid "The transfer was cancelled or the connection was lost. Copy them again to retry."
+msgstr "Il trasferimento è stato annullato o la connessione si è interrotta. Copiali di nuovo per riprovare."
+
+#: win_app/scotty_files.py
 msgid "Something went wrong; nothing was kept."
 msgstr "Qualcosa è andato storto; non è stato tenuto nulla."
 
@@ -5503,6 +5535,11 @@ msgstr "Non è stato possibile leggerli su questo PC."
 #, python-brace-format
 msgid "{size} is over this PC's limit of {limit}. Raise it under Files on the Overview page."
 msgstr "{size} supera il limite di questo PC di {limit}. Alzalo in File nella pagina Panoramica."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "Sending {what}"
+msgstr "Invio di {what}"
 
 #: win_app/scotty_files.py
 #, python-brace-format
@@ -5527,6 +5564,16 @@ msgstr "La porta {port} è usata da un altro programma, quindi i file copiati no
 #, python-brace-format
 msgid "Copy at most {count} items at once, or put them in one folder."
 msgstr "Copia al massimo {count} elementi alla volta, oppure mettili in una cartella."
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} sent"
+msgstr "Invio completato: {what}"
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} was not sent in full"
+msgstr "Invio non completato: {what}"
 
 #: win_app/scotty_files.py
 #, python-brace-format

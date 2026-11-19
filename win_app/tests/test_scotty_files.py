@@ -27,8 +27,9 @@ class FakeClipboard:
     def get_files(self):
         return self.files
 
-    def set_files(self, paths):
+    def set_files(self, paths, move=False):
         self.set.append(paths)
+        self.moved = move
         return True
 
     def change_stamp(self):
@@ -87,6 +88,75 @@ class BridgeTests(unittest.TestCase):
         receiving = [notice for notice in self.notices if notice["state"] == "receiving"]
         self.assertTrue(receiving)
         self.assertEqual(receiving[-1]["done_bytes"], receiving[-1]["total_bytes"])
+
+    def test_received_files_go_on_the_clipboard_as_cut_so_pasting_moves_them(self):
+        sender = self.bridge(FakeClipboard([os.path.join(self.source, "big.bin")]))
+        receiver_clipboard = FakeClipboard()
+        receiver = self.bridge(receiver_clipboard)
+        receiver.incoming("127.0.0.1", self.wire(sender.outgoing("127.0.0.1")))
+        self.assertTrue(self.done.wait(20))
+        self.assertTrue(receiver_clipboard.moved)
+        self.assertIn("move", self.notices[-1]["message"])
+
+    def test_the_sending_pc_sees_progress_and_the_end(self):
+        sender = self.bridge(FakeClipboard([os.path.join(self.source, "big.bin")]))
+        receiver = self.bridge(FakeClipboard())
+        receiver.incoming("127.0.0.1", self.wire(sender.outgoing("127.0.0.1")))
+        self.assertTrue(self.done.wait(20))
+        for _ in range(100):
+            if any(notice["state"] == "sent" for notice in self.notices):
+                break
+            threading.Event().wait(0.05)
+        states = [notice["state"] for notice in self.notices]
+        self.assertIn("sending", states)
+        self.assertIn("sent", states)
+
+    def test_a_used_up_offer_is_not_offered_again(self):
+        clipboard = FakeClipboard([os.path.join(self.source, "Folder")])
+        sender = self.bridge(clipboard)
+        receiver = self.bridge(FakeClipboard())
+        first = sender.outgoing("127.0.0.1")
+        receiver.incoming("127.0.0.1", self.wire(first))
+        self.assertTrue(self.done.wait(20))
+        for _ in range(100):
+            if not sender._server.has_offer(protocol.read_files(first)["transfer"]):
+                break
+            threading.Event().wait(0.05)
+        self.assertNotEqual(first["data"]["transfer"], sender.outgoing("127.0.0.1")["data"]["transfer"])
+
+    def test_an_unknown_peer_address_offers_nothing(self):
+        # From the security review: an offer with no address would be served to anyone.
+        bridge = self.bridge(FakeClipboard([os.path.join(self.source, "big.bin")]))
+        self.assertIsNone(bridge.outgoing(None))
+        self.assertIsNone(bridge.outgoing(""))
+
+    def test_a_flood_of_manifests_runs_one_fetch_at_a_time(self):
+        started, release = [], threading.Event()
+
+        def slow_fetch(host, read, *args, **kwargs):
+            started.append(read["count"])
+            release.wait(5)
+            raise filechannel.TransferCancelled("stopped")
+
+        bridge = self.bridge(FakeClipboard())
+        bridge._fetch = slow_fetch
+        manifest = {"count": 0, "names": ["x"], "total_bytes": 0}
+        for count in range(50):
+            bridge.incoming("127.0.0.1", dict(manifest, count=count))
+        threading.Event().wait(0.3)
+        release.set()
+        for _ in range(100):
+            if bridge._worker is None:
+                break
+            threading.Event().wait(0.05)
+        self.assertLessEqual(len(started), 2)
+        self.assertEqual(started[-1], 49)
+
+    def test_cancel_also_stops_what_this_pc_is_sending(self):
+        bridge = self.bridge(FakeClipboard())
+        with mock.patch.object(bridge._server, "cancel_sends") as cancel_sends:
+            bridge.cancel()
+        cancel_sends.assert_called_once_with()
 
     def test_nothing_copied_or_files_off_sends_nothing(self):
         self.assertIsNone(self.bridge(FakeClipboard(None)).outgoing("127.0.0.1"))

@@ -1169,6 +1169,10 @@ def apply_arrangement(path: Path, peer: str, edge: str, set_at: int, by: str, wa
 FILES_FILE = "scotty.json"
 FILES_DEFAULT_MAX_BYTES = 2 * 1024 ** 3
 FILES_MAX_BYTES_CEILING = 2 ** 53 - 1
+# Received files are moved out of the drop folder when pasted; what is never pasted is cleared
+# after this many days (0 keeps it).
+FILES_DEFAULT_KEEP_DAYS = 7
+FILES_MAX_KEEP_DAYS = 3650
 
 
 def files_default_drop_folder() -> str:
@@ -1176,7 +1180,8 @@ def files_default_drop_folder() -> str:
 
 
 def files_defaults() -> dict:
-    return {"enabled": True, "drop_folder": files_default_drop_folder(), "max_bytes": FILES_DEFAULT_MAX_BYTES}
+    return {"enabled": True, "drop_folder": files_default_drop_folder(), "max_bytes": FILES_DEFAULT_MAX_BYTES,
+            "keep_days": FILES_DEFAULT_KEEP_DAYS, "mark_received": True}
 
 
 def files_settings_path(settings_path: Path) -> Path:
@@ -1203,13 +1208,20 @@ def load_files_settings(path: Path) -> dict:
     limit = files.get("max_bytes")
     if type(limit) is int and 1 <= limit <= FILES_MAX_BYTES_CEILING:
         settings["max_bytes"] = limit
+    keep = files.get("keep_days")
+    if type(keep) is int and 0 <= keep <= FILES_MAX_KEEP_DAYS:
+        settings["keep_days"] = keep
+    if isinstance(files.get("mark_received"), bool):
+        settings["mark_received"] = files["mark_received"]
     return settings
 
 
 def save_files_settings(path: Path, settings: dict) -> None:
     """Write `settings` (as load_files_settings returns them) to scotty.json, replacing it whole."""
     payload = {"files": {"enabled": bool(settings["enabled"]), "drop_folder": str(settings["drop_folder"]),
-                         "max_bytes": int(settings["max_bytes"])}}
+                         "max_bytes": int(settings["max_bytes"]),
+                         "keep_days": int(settings.get("keep_days", FILES_DEFAULT_KEEP_DAYS)),
+                         "mark_received": bool(settings.get("mark_received", True))}}
     # Not _write_json: in a portable run that writes settings.json's own store, not this file.
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

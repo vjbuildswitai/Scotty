@@ -4414,6 +4414,10 @@ msgid "Open"
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
+msgid "Mark received files as from another computer"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
 msgid "Where received files go"
 msgstr ""
 
@@ -4645,6 +4649,18 @@ msgstr ""
 
 #: win_app/kvm_bridge_win.py
 msgid "Largest transfer, in GB"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Clear files not pasted after, in days (0 keeps them)"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Pasting moves received files out of that folder, so only one copy is left."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Windows then asks before a received program runs, and Office opens received documents in Protected View."
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
@@ -5369,7 +5385,7 @@ msgid "This PC's keyboard and pointer are on {name}. Do the same again to bring 
 msgstr ""
 
 #: win_app/portable_entry.py
-msgid "Beamer Portable needs its Beamer.portable marker and a writable folder beside the app. Move the whole folder to writable storage and try again."
+msgid "Beamer Portable needs its Scotty.portable marker and a writable folder beside the app. Move the whole folder to writable storage and try again."
 msgstr ""
 
 #: win_app/portable_entry.py
@@ -5377,11 +5393,19 @@ msgid "Beamer Portable"
 msgstr ""
 
 #: win_app/scotty_files.py
-msgid "Press Ctrl+V in any folder to paste."
+msgid "Press Ctrl+V in any folder to move them there."
 msgstr ""
 
 #: win_app/scotty_files.py
 msgid "Copied files were not sent"
+msgstr ""
+
+#: win_app/scotty_files.py
+msgid "The other PC is fetching them."
+msgstr ""
+
+#: win_app/scotty_files.py
+msgid "This drive cannot mark them as from another computer, so Windows will not warn before a received program runs."
 msgstr ""
 
 #: win_app/scotty_files.py
@@ -5404,6 +5428,14 @@ msgid "Scotty cannot send files"
 msgstr ""
 
 #: win_app/scotty_files.py
+msgid "The other PC has them."
+msgstr ""
+
+#: win_app/scotty_files.py
+msgid "The transfer was cancelled or the connection was lost. Copy them again to retry."
+msgstr ""
+
+#: win_app/scotty_files.py
 msgid "Something went wrong; nothing was kept."
 msgstr ""
 
@@ -5419,6 +5451,11 @@ msgstr ""
 #: win_app/scotty_files.py
 #, python-brace-format
 msgid "{size} is over this PC's limit of {limit}. Raise it under Files on the Overview page."
+msgstr ""
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "Sending {what}"
 msgstr ""
 
 #: win_app/scotty_files.py
@@ -5443,6 +5480,16 @@ msgstr ""
 #: win_app/scotty_files.py
 #, python-brace-format
 msgid "Copy at most {count} items at once, or put them in one folder."
+msgstr ""
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} sent"
+msgstr ""
+
+#: win_app/scotty_files.py
+#, python-brace-format
+msgid "{what} was not sent in full"
 msgstr ""
 
 #: win_app/scotty_files.py

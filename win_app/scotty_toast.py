@@ -36,6 +36,8 @@ class TransferToast(QWidget):
         self.title = QLabel()
         self.title.setObjectName("title")
         self.title.setWordWrap(True)
+        # File names come from the other machine: never let one render as formatted text.
+        self.title.setTextFormat(Qt.TextFormat.PlainText)
         self.message = QLabel()
         self.message.setWordWrap(True)
         self.message.setTextFormat(Qt.TextFormat.PlainText)
@@ -64,12 +66,12 @@ class TransferToast(QWidget):
         """Show `event` (FilesBridge's notice dict)."""
         state = event.get("state")
         self.title.setText(event.get("title", ""))
-        receiving = state == "receiving"
+        receiving = state in ("receiving", "sending")
         message = event.get("message", "")
-        if receiving and message:
+        if state == "receiving" and message:
             message = os.path.basename(message.replace("/", os.sep)) or message
         self.message.setText(message)
-        self.bar.setVisible(receiving or state == "done")
+        self.bar.setVisible(receiving or state in ("done", "sent"))
         self.bar.setValue(percent(event.get("done_bytes", 0), event.get("total_bytes", 0)) if receiving else 100)
         self.cancel_button.setVisible(receiving)
         self._folder = event.get("folder")
