@@ -21,6 +21,11 @@ jobs:
       - name: Install
         shell: bash
         run: python -m pip install -r win_app/requirements-win.txt
+      # Upstream's tests expect British spelling ("colour"); a US region turns on the app's US
+      # spelling. The LOQ is en-GB; the runner is en-US until told otherwise.
+      - name: British English region
+        shell: pwsh
+        run: Set-Culture en-GB
       - name: Verify
         shell: bash
         env:
