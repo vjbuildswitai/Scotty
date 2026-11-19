@@ -38,9 +38,12 @@ class WindowsLaunchManifestTests(unittest.TestCase):
         # A sign-in cleanup of %TEMP% must not delete the one-file DLLs before Qt loads.
         self.assertEqual(options.get("runtime_tmpdir"), r"%LOCALAPPDATA%\Scotty\Runtime")
         self.assertIs(options["version"], versioninfo.VSVersionInfo.return_value)
-        version = (source.parent / "VERSION").read_text(encoding="utf-8").strip()
+        # Scotty: the exe carries Scotty's own version (core/brand.py), not upstream's VERSION file,
+        # which stays what peers see on the wire. Signing services check the product name too.
+        from core import brand
+        version = brand.VERSION
         versioninfo.StringStruct.assert_has_calls([
-            call("FileVersion", version), call("ProductVersion", version),
+            call("FileVersion", version), call("ProductVersion", version), call("ProductName", "Scotty"),
         ], any_order=True)
         numeric_version = tuple(int(part) for part in version.split("-", 1)[0].split("."))
         numeric_version += (0,) * (4 - len(numeric_version))
