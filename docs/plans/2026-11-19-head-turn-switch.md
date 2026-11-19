@@ -84,4 +84,10 @@ works as now.
 - Setting off (default) never opens the camera or imports OpenCV. Revert the PR to remove it.
 
 ## Deviations
--
+- Calibration shows only on this PC's screen ("Now turn to <name>"): showing a ring on the other
+  PC would need a new wire message, and the rules keep the wire unchanged.
+- `scotty.json` sections now save independently (`_write_scotty_section`), so saving head turn
+  never wipes the files settings.
+- The Overview card uses the current look; it moves to the new design with the UI plan.
+- Sensitivity slider and camera picker deferred until the two-laptop trial says they are needed
+  (dwell and cooldown are already settings in `scotty.json`).

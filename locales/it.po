@@ -977,7 +977,7 @@ msgstr "superiore"
 msgid "bottom"
 msgstr "inferiore"
 
-#: core/ways.py
+#: core/ways.py win_app/kvm_bridge_win.py
 msgid "this PC"
 msgstr "questo PC"
 
@@ -1789,7 +1789,7 @@ msgstr "Elimina…"
 msgid "Profile name"
 msgstr "Nome del profilo"
 
-#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/kvm_bridge_win.py win_app/machines_win.py win_app/scotty_toast.py
+#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/headturn_calibrate.py win_app/kvm_bridge_win.py win_app/machines_win.py win_app/scotty_toast.py
 msgid "Cancel"
 msgstr "Annulla"
 
@@ -4326,6 +4326,65 @@ msgstr "Beamer usa la porta personalizzata {port}; chiedi all'amministratore di 
 msgid "Send input to another machine"
 msgstr "Invia input a un altro computer"
 
+#: win_app/headturn_calibrate.py
+msgid "Head turn calibration"
+msgstr "Calibrazione del giro di testa"
+
+#: win_app/headturn_calibrate.py
+msgid "Camera on. Nothing is saved or sent."
+msgstr "Fotocamera accesa. Non viene salvato né inviato nulla."
+
+#: win_app/headturn_calibrate.py
+msgid "Try again"
+msgstr "Riprova"
+
+#: win_app/headturn_calibrate.py
+msgid "That didn't work"
+msgstr "Non ha funzionato"
+
+#: win_app/headturn_calibrate.py
+msgid "Calibrated"
+msgstr "Calibrato"
+
+#: win_app/headturn_calibrate.py
+msgid "Turn your head to switch. Typing, holding a key or looking at the keyboard never switches."
+msgstr "Gira la testa per cambiare. Scrivere, tenere premuto un tasto o guardare la tastiera non cambia mai."
+
+#: win_app/headturn_calibrate.py
+msgid "Done"
+msgstr "Fatto"
+
+#: win_app/headturn_calibrate.py
+msgid "Look at this screen"
+msgstr "Guarda questo schermo"
+
+#: win_app/headturn_calibrate.py
+msgid "Sit as you normally do and look at the number."
+msgstr "Siediti come al solito e guarda il numero."
+
+#: win_app/headturn_calibrate.py
+msgid "Scotty could not see your face. Check the camera is not covered and the room is lit."
+msgstr "Scotty non riusciva a vedere il tuo viso. Controlla che la fotocamera non sia coperta e che la stanza sia illuminata."
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Screen {index} of {count}"
+msgstr "Schermo {index} di {count}"
+
+#: win_app/headturn_calibrate.py
+msgid "The screens are too close together to tell apart by turning your head. Angle the laptops further apart, or keep using the pointer."
+msgstr "Gli schermi sono troppo vicini per distinguerli girando la testa. Distanzia di più i portatili o continua a usare il puntatore."
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Now turn to {name}"
+msgstr "Ora girati verso {name}"
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Face {name}'s screen as you would to use it, and hold still until this screen says done."
+msgstr "Guarda lo schermo di {name} come faresti per usarlo e resta fermo finché questo schermo non dice fatto."
+
 #: win_app/identify_overlay.py
 msgid "Beamer — Identify screens"
 msgstr "Beamer — Identifica gli schermi"
@@ -4486,6 +4545,58 @@ msgstr "Apri"
 #: win_app/kvm_bridge_win.py
 msgid "Mark received files as from another computer"
 msgstr "Segna i file ricevuti come provenienti da un altro computer"
+
+#: win_app/kvm_bridge_win.py
+msgid "Head turn"
+msgstr "Giro di testa"
+
+#: win_app/kvm_bridge_win.py
+msgid "Switch PCs by turning your head"
+msgstr "Cambia PC girando la testa"
+
+#: win_app/kvm_bridge_win.py
+msgid "Calibrate"
+msgstr "Calibra"
+
+#: win_app/kvm_bridge_win.py
+msgid "Camera settings"
+msgstr "Impostazioni fotocamera"
+
+#: win_app/kvm_bridge_win.py
+msgid "Calibrate first: it takes about ten seconds."
+msgstr "Prima calibra: ci vogliono circa dieci secondi."
+
+#: win_app/kvm_bridge_win.py
+msgid "Windows is blocking the camera for desktop apps. Allow it under Camera settings."
+msgstr "Windows blocca la fotocamera per le app desktop. Consentila in Impostazioni fotocamera."
+
+#: win_app/kvm_bridge_win.py
+msgid "No camera found. Check it is plugged in and not used by another app."
+msgstr "Nessuna fotocamera trovata. Controlla che sia collegata e non usata da un'altra app."
+
+#: win_app/kvm_bridge_win.py
+msgid "Head turn stopped after an error. The log has the details."
+msgstr "Il giro di testa si è fermato per un errore. I dettagli sono nel log."
+
+#: win_app/kvm_bridge_win.py
+msgid "Off. The camera is not in use."
+msgstr "Disattivato. La fotocamera non è in uso."
+
+#: win_app/kvm_bridge_win.py
+msgid "Paused from the tray."
+msgstr "Sospeso dall'area di notifica."
+
+#: win_app/kvm_bridge_win.py
+msgid "Starts when this PC sends its keyboard and mouse."
+msgstr "Parte quando questo PC invia tastiera e mouse."
+
+#: win_app/kvm_bridge_win.py
+msgid "On. Can't see your face right now, so input stays where it is."
+msgstr "Attivo. Ora non vedo il tuo viso, quindi l'input resta dov'è."
+
+#: win_app/kvm_bridge_win.py
+msgid "On. You are facing this PC."
+msgstr "Attivo. Stai guardando questo PC."
 
 #: win_app/kvm_bridge_win.py
 msgid "Where received files go"
@@ -4678,6 +4789,10 @@ msgid "Checking…"
 msgstr "Verifica…"
 
 #: win_app/kvm_bridge_win.py
+msgid "Pause head turn"
+msgstr "Sospendi il giro di testa"
+
+#: win_app/kvm_bridge_win.py
 msgid "This PC drives machines"
 msgstr "Questo PC controlla gli altri computer"
 
@@ -4740,6 +4855,23 @@ msgstr "Così Windows chiede conferma prima di eseguire un programma ricevuto, e
 #: win_app/kvm_bridge_win.py
 msgid "Applies to files this PC sends and receives. Turning files on or off takes effect for the other machine when the link next connects."
 msgstr "Vale per i file che questo PC invia e riceve. Attivare o disattivare i file ha effetto sull'altra macchina alla prossima connessione del collegamento."
+
+#: win_app/kvm_bridge_win.py
+msgid "This PC's webcam sees which screen you face. Each frame stays in memory for a moment and is never saved or sent. It never switches while you type, hold a key or look at the keyboard."
+msgstr "La webcam di questo PC vede quale schermo stai guardando. Ogni fotogramma resta in memoria per un istante e non viene mai salvato né inviato. Non cambia mai mentre scrivi, tieni premuto un tasto o guardi la tastiera."
+
+#: win_app/kvm_bridge_win.py
+#, python-brace-format
+msgid "On. You are facing {name}."
+msgstr "Attivo. Stai guardando {name}."
+
+#: win_app/kvm_bridge_win.py
+msgid "the other PC"
+msgstr "l'altro PC"
+
+#: win_app/kvm_bridge_win.py
+msgid "Pair another PC first, then calibrate head turn."
+msgstr "Prima associa un altro PC, poi calibra il giro di testa."
 
 #: win_app/kvm_bridge_win.py
 msgid "Download portable zip"
@@ -4843,6 +4975,10 @@ msgstr "Portatile: impostazioni e chiavi di abbinamento restano in questa cartel
 #: win_app/kvm_bridge_win.py
 msgid "Enter the passphrase again."
 msgstr "Inserisci di nuovo la frase segreta."
+
+#: win_app/kvm_bridge_win.py
+msgid "Resume head turn"
+msgstr "Riprendi il giro di testa"
 
 #: win_app/kvm_bridge_win.py
 msgid "With it off, closing the window quits Beamer. Open Beamer again to bring the window back."

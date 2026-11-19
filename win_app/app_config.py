@@ -1217,11 +1217,67 @@ def load_files_settings(path: Path) -> dict:
 
 
 def save_files_settings(path: Path, settings: dict) -> None:
-    """Write `settings` (as load_files_settings returns them) to scotty.json, replacing it whole."""
-    payload = {"files": {"enabled": bool(settings["enabled"]), "drop_folder": str(settings["drop_folder"]),
-                         "max_bytes": int(settings["max_bytes"]),
-                         "keep_days": int(settings.get("keep_days", FILES_DEFAULT_KEEP_DAYS)),
-                         "mark_received": bool(settings.get("mark_received", True))}}
+    """Write `settings` (as load_files_settings returns them) as scotty.json's files section,
+    keeping its other sections."""
+    _write_scotty_section(path, "files", {
+        "enabled": bool(settings["enabled"]), "drop_folder": str(settings["drop_folder"]),
+        "max_bytes": int(settings["max_bytes"]),
+        "keep_days": int(settings.get("keep_days", FILES_DEFAULT_KEEP_DAYS)),
+        "mark_received": bool(settings.get("mark_received", True))})
+
+
+# Fork (Scotty): head turn (core/headturn.py, win_app/headturn_win.py). Off by default.
+HEADTURN_DWELL_RANGE = (0.2, 1.5)
+HEADTURN_COOLDOWN_RANGE = (0.3, 5.0)
+
+
+def headturn_defaults() -> dict:
+    return {"enabled": False, "camera": 0, "calibration": None, "dwell": 0.4, "cooldown": 1.0}
+
+
+def load_headturn_settings(path: Path) -> dict:
+    """scotty.json's head turn section over the defaults; anything invalid keeps its default.
+    The calibration is kept as saved here and checked by core.headturn.Calibration.from_json."""
+    settings = headturn_defaults()
+    try:
+        with open(path, "r", encoding="utf-8") as source:
+            raw = json.load(source)
+    except (OSError, ValueError):
+        return settings
+    section = raw.get("headturn") if isinstance(raw, dict) else None
+    if not isinstance(section, dict):
+        return settings
+    if isinstance(section.get("enabled"), bool):
+        settings["enabled"] = section["enabled"]
+    if type(section.get("camera")) is int and 0 <= section["camera"] <= 9:
+        settings["camera"] = section["camera"]
+    if isinstance(section.get("calibration"), list):
+        settings["calibration"] = section["calibration"]
+    for key, (low, high) in (("dwell", HEADTURN_DWELL_RANGE), ("cooldown", HEADTURN_COOLDOWN_RANGE)):
+        value = section.get(key)
+        if type(value) in (int, float) and low <= value <= high:
+            settings[key] = float(value)
+    return settings
+
+
+def save_headturn_settings(path: Path, settings: dict) -> None:
+    _write_scotty_section(path, "headturn", {
+        "enabled": bool(settings.get("enabled")), "camera": int(settings.get("camera") or 0),
+        "calibration": settings.get("calibration") if isinstance(settings.get("calibration"), list) else None,
+        "dwell": float(settings.get("dwell", 0.4)), "cooldown": float(settings.get("cooldown", 1.0))})
+
+
+def _write_scotty_section(path: Path, section: str, value: dict) -> None:
+    """Replace one section of scotty.json atomically, keeping the others (an unreadable file
+    starts afresh)."""
+    try:
+        with open(path, "r", encoding="utf-8") as source:
+            payload = json.load(source)
+    except (OSError, ValueError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    payload[section] = value
     # Not _write_json: in a portable run that writes settings.json's own store, not this file.
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

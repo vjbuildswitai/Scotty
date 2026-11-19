@@ -78,6 +78,22 @@ section 11; code: `core/filechannel.py`.
 - **Portable passphrase**: Argon2id at moderate strength (256 MiB a guess); a vault written by an
   older version is rewritten at that strength on first unlock.
 
+## Head turn and the camera (Scotty)
+
+- **Off by default.** While off, Scotty never opens the camera and never loads OpenCV.
+- **On this PC only.** Only the PC with the keyboard and mouse uses its webcam; the other PC's
+  camera is never touched.
+- **Nothing kept, nothing sent.** Each frame is shrunk to 320 px, searched for one face, turned
+  into two numbers (how far the nose sits sideways and below the eyes) and dropped. No picture is
+  written, logged or sent. Calibration saves only those numbers for each screen, in `scotty.json`.
+- **Nothing new on the network.** A head turn moves input the way the jump shortcut does; the other
+  PC cannot tell the two apart, and no camera data or new message travels between them.
+- **Never steals typing.** No switch while a key or mouse button is held, within 0.8 s of a key
+  press, or while you look down at the keyboard.
+- **Windows stays in charge.** The camera light is on while head turn runs. If Windows privacy
+  settings block the camera for desktop apps, Scotty says so and does not try to get round it.
+- The face model (YuNet, MIT licence) ships inside Scotty; nothing is downloaded at run time.
+
 ## What it does not protect against
 
 - **Someone on your network can see that Beamer is running.** Machines announce their name and

@@ -975,7 +975,7 @@ msgstr ""
 msgid "bottom"
 msgstr ""
 
-#: core/ways.py
+#: core/ways.py win_app/kvm_bridge_win.py
 msgid "this PC"
 msgstr ""
 
@@ -1769,7 +1769,7 @@ msgstr ""
 msgid "Profile name"
 msgstr ""
 
-#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/kvm_bridge_win.py win_app/machines_win.py win_app/scotty_toast.py
+#: mac_app/kvm_bridge_app.py mac_app/machines_panel.py win_app/headturn_calibrate.py win_app/kvm_bridge_win.py win_app/machines_win.py win_app/scotty_toast.py
 msgid "Cancel"
 msgstr ""
 
@@ -4262,6 +4262,65 @@ msgstr ""
 msgid "Send input to another machine"
 msgstr ""
 
+#: win_app/headturn_calibrate.py
+msgid "Head turn calibration"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Camera on. Nothing is saved or sent."
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Try again"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "That didn't work"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Calibrated"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Turn your head to switch. Typing, holding a key or looking at the keyboard never switches."
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Done"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Look at this screen"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Sit as you normally do and look at the number."
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "Scotty could not see your face. Check the camera is not covered and the room is lit."
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Screen {index} of {count}"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+msgid "The screens are too close together to tell apart by turning your head. Angle the laptops further apart, or keep using the pointer."
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Now turn to {name}"
+msgstr ""
+
+#: win_app/headturn_calibrate.py
+#, python-brace-format
+msgid "Face {name}'s screen as you would to use it, and hold still until this screen says done."
+msgstr ""
+
 #: win_app/identify_overlay.py
 msgid "Beamer — Identify screens"
 msgstr ""
@@ -4415,6 +4474,58 @@ msgstr ""
 
 #: win_app/kvm_bridge_win.py
 msgid "Mark received files as from another computer"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Head turn"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Switch PCs by turning your head"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Calibrate"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Camera settings"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Calibrate first: it takes about ten seconds."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Windows is blocking the camera for desktop apps. Allow it under Camera settings."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "No camera found. Check it is plugged in and not used by another app."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Head turn stopped after an error. The log has the details."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Off. The camera is not in use."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Paused from the tray."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Starts when this PC sends its keyboard and mouse."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "On. Can't see your face right now, so input stays where it is."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "On. You are facing this PC."
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
@@ -4604,6 +4715,10 @@ msgid "Checking…"
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
+msgid "Pause head turn"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
 msgid "This PC drives machines"
 msgstr ""
 
@@ -4665,6 +4780,23 @@ msgstr ""
 
 #: win_app/kvm_bridge_win.py
 msgid "Applies to files this PC sends and receives. Turning files on or off takes effect for the other machine when the link next connects."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "This PC's webcam sees which screen you face. Each frame stays in memory for a moment and is never saved or sent. It never switches while you type, hold a key or look at the keyboard."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+#, python-brace-format
+msgid "On. You are facing {name}."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "the other PC"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Pair another PC first, then calibrate head turn."
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
@@ -4766,6 +4898,10 @@ msgstr ""
 
 #: win_app/kvm_bridge_win.py
 msgid "Enter the passphrase again."
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Resume head turn"
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
