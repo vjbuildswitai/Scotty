@@ -1,27 +1,10 @@
 from pathlib import Path
-from PyInstaller.utils.win32.versioninfo import (
-    FixedFileInfo, StringFileInfo, StringStruct, StringTable,
-    VarFileInfo, VarStruct, VSVersionInfo,
-)
+import runpy
 
 
 source_dir = Path(SPECPATH)
-version = (source_dir.parent / "VERSION").read_text(encoding="utf-8").strip()
-numeric_version = tuple(int(part) for part in version.split("-", 1)[0].split("."))
-numeric_version += (0,) * (4 - len(numeric_version))
-version_info = VSVersionInfo(
-    ffi=FixedFileInfo(filevers=numeric_version, prodvers=numeric_version,
-                     mask=0x3F, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0, 0)),
-    kids=[StringFileInfo([StringTable("080904B0", [
-        StringStruct("CompanyName", "Scotty (based on Beamer by Kalkman Code)"),
-        StringStruct("FileDescription", "Scotty"),
-        StringStruct("FileVersion", version),
-        StringStruct("InternalName", "Scotty"),
-        StringStruct("OriginalFilename", "Scotty.exe"),
-        StringStruct("ProductName", "Scotty"),
-        StringStruct("ProductVersion", version),
-    ])]), VarFileInfo([VarStruct("Translation", [0x0809, 1200])])],
-)
+# Scotty's own version (core/brand.py), shared with build_portable.spec.
+version_info = runpy.run_path(str(source_dir / "hooks" / "scotty_version.py"))["version_info"](source_dir)
 # Every module of the app's folder and of core/, by name: the same set the import probe loads from
 # the built exe, so a module the analysis misses fails the probe and is never left out by drift here.
 app_modules = sorted(path.stem for path in source_dir.glob("*.py") if path.stem != "kvm_bridge_win")
@@ -42,7 +25,8 @@ analysis = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["PIL", "pystray", "tkinter", "numpy", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtMultimedia"],
+    # numpy stays: OpenCV (head turn) needs it.
+    excludes=["PIL", "pystray", "tkinter", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtMultimedia"],
     noarchive=False,
 )
 
@@ -53,6 +37,8 @@ filtered_binaries = [
     b for b in analysis.binaries
     if b[0].lower() not in excluded_binaries
     and not b[0].lower().startswith("api-ms-win-")
+    # Scotty: OpenCV's ffmpeg reads video files; head turn reads the webcam through DirectShow/MSMF.
+    and "opencv_videoio_ffmpeg" not in b[0].lower()
 ]
 
 python_archive = PYZ(analysis.pure)

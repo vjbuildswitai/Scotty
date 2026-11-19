@@ -1,0 +1,61 @@
+name: release
+
+# Builds Scotty from a version tag on GitHub's Windows runner, has SignPath sign it (once the
+# SignPath Foundation programme has accepted Scotty and the secrets below exist), and attaches the
+# result to a DRAFT release. A person publishes the draft; nothing here makes it public.
+#
+# Repository secrets/variables, set by VJ once:
+#   SIGNPATH_API_TOKEN (secret), SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG,
+#   SIGNPATH_POLICY_SLUG (variables). Without them the draft carries the unsigned build, named so.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the portable zip
+        shell: pwsh
+        run: |
+          cd win_app
+          ./build_portable.ps1 -OutputDirectory "$env:GITHUB_WORKSPACE/out"
+      - name: Upload the unsigned build
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: scotty-unsigned
+          path: out/Scotty-Portable-*-windows-x64.zip
+          if-no-files-found: error
+      - name: Sign with SignPath
+        if: ${{ vars.SIGNPATH_PROJECT_SLUG != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Draft the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = if (Test-Path signed) { Get-ChildItem signed -Filter *.zip } else { Get-ChildItem out -Filter *.zip }
+          $note = if (Test-Path signed) { "Signed by SignPath Foundation. See CODE-SIGNING.md." } else { "UNSIGNED build. See CODE-SIGNING.md." }
+          $hashes = $files | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" }
+          $body = "$note`n`nSHA-256:`n" + ($hashes -join "`n") + "`n`nSee CHANGELOG.md for what changed."
+          gh release create "$env:GITHUB_REF_NAME" $files.FullName --draft --title "Scotty $($env:GITHUB_REF_NAME.TrimStart('v'))" --notes $body

@@ -1,7 +1,10 @@
 from pathlib import Path
+import runpy
 
 
 source_dir = Path(SPECPATH)
+# Scotty's own version (core/brand.py), shared with build.spec.
+version_info = runpy.run_path(str(source_dir / "hooks" / "scotty_version.py"))["version_info"](source_dir)
 app_modules = sorted(path.stem for path in source_dir.glob("*.py") if path.stem != "kvm_bridge_win")
 core_modules = sorted(f"core.{path.stem}" for path in (source_dir.parent / "core").glob("*.py") if path.stem != "__init__")
 
@@ -17,7 +20,8 @@ analysis = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[str(source_dir / "hooks" / "portable_storage.py")],
-    excludes=["PIL", "pystray", "tkinter", "numpy", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtMultimedia"],
+    # numpy stays: OpenCV (head turn) needs it.
+    excludes=["PIL", "pystray", "tkinter", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtMultimedia"],
     noarchive=False,
 )
 
@@ -26,6 +30,8 @@ filtered_binaries = [
     binary for binary in analysis.binaries
     if binary[0].lower() != "ucrtbase.dll"
     and not binary[0].lower().startswith("api-ms-win-")
+    # Scotty: OpenCV's ffmpeg reads video files; head turn reads the webcam through DirectShow/MSMF.
+    and "opencv_videoio_ffmpeg" not in binary[0].lower()
 ]
 
 python_archive = PYZ(analysis.pure)
@@ -46,6 +52,7 @@ executable = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(source_dir / "Scotty.ico"),
+    version=version_info,
     # The one-folder bootloader needs no temporary extraction or elevation.
     uac_admin=False,
     uac_uiaccess=False,

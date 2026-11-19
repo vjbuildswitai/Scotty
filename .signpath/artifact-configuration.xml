@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration for Scotty (paste into the SignPath project, Artifact
+     configurations). The GitHub artifact is a zip around the portable zip; SignPath signs
+     Scotty.exe inside it, re-packs both, and refuses any exe whose version resource is not
+     Scotty's, so nothing else can be signed under Scotty's name. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <zip-file path="Scotty-Portable-*-windows-x64.zip">
+      <directory path="Scotty-portable">
+        <pe-file path="Scotty.exe" product-name="Scotty">
+          <authenticode-sign />
+        </pe-file>
+      </directory>
+    </zip-file>
+  </zip-file>
+</artifact-configuration>
