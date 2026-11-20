@@ -1267,6 +1267,32 @@ def save_headturn_settings(path: Path, settings: dict) -> None:
         "dwell": float(settings.get("dwell", 0.4)), "cooldown": float(settings.get("cooldown", 1.0))})
 
 
+def extras_defaults() -> dict:
+    """Scotty 1.2's switches (docs/plans/2026-11-20-six-features.md), all on until turned off."""
+    return {"lock_together": True, "accept_sent": True, "clipboard_history": True, "wake": True}
+
+
+def load_extras_settings(path: Path) -> dict:
+    """scotty.json's extras section over the defaults; anything that is not a bool keeps its default."""
+    settings = extras_defaults()
+    try:
+        with open(path, "r", encoding="utf-8") as source:
+            raw = json.load(source)
+    except (OSError, ValueError):
+        return settings
+    section = raw.get("extras") if isinstance(raw, dict) else None
+    if isinstance(section, dict):
+        for key in settings:
+            if isinstance(section.get(key), bool):
+                settings[key] = section[key]
+    return settings
+
+
+def save_extras_settings(path: Path, settings: dict) -> None:
+    defaults = extras_defaults()
+    _write_scotty_section(path, "extras", {key: bool(settings.get(key, default)) for key, default in defaults.items()})
+
+
 def _write_scotty_section(path: Path, section: str, value: dict) -> None:
     """Replace one section of scotty.json atomically, keeping the others (an unreadable file
     starts afresh)."""

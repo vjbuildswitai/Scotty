@@ -95,6 +95,15 @@ section 11; code: `core/filechannel.py`.
   settings block the camera for desktop apps, Scotty says so and does not try to get round it.
 - The face model (YuNet, MIT licence) ships inside Scotty; nothing is downloaded at run time.
 
+## What a paired PC can make this one do (Scotty extras)
+
+Only a PC paired with this one, over the encrypted link, and only while both run Scotty 1.2 or
+later (WIRE.md section 12). Each has its own switch on Overview.
+
+- **Lock together.** A paired PC can lock this one, at most once every 5 seconds. Nothing can
+  unlock it: that still takes your Windows password, PIN or face. A lock a peer caused is not sent
+  back, so two PCs cannot keep locking each other.
+
 ## What it does not protect against
 
 - **Someone on your network can see that Scotty is running.** Machines announce their name and

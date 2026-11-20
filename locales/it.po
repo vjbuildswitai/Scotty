@@ -4599,6 +4599,14 @@ msgid "On. You are facing this PC."
 msgstr "Attivo. Stai guardando questo PC."
 
 #: win_app/kvm_bridge_win.py
+msgid "Lock together"
+msgstr "Blocco insieme"
+
+#: win_app/kvm_bridge_win.py
+msgid "Lock my other PCs when this one locks"
+msgstr "Blocca gli altri PC quando si blocca questo"
+
+#: win_app/kvm_bridge_win.py
 msgid "Where received files go"
 msgstr "Dove vanno i file ricevuti"
 
@@ -4868,6 +4876,10 @@ msgstr "Attivo. Stai guardando {name}."
 #: win_app/kvm_bridge_win.py
 msgid "the other PC"
 msgstr "l'altro PC"
+
+#: win_app/kvm_bridge_win.py
+msgid "Win+L, closing the lid or the screen timeout locks the paired PCs that have this on. A paired PC can lock this one, never unlock it."
+msgstr "Win+L, la chiusura del coperchio o il timeout dello schermo bloccano i PC associati che hanno questa opzione attiva. Un PC associato può bloccare questo, mai sbloccarlo."
 
 #: win_app/kvm_bridge_win.py
 msgid "Pair another PC first, then calibrate head turn."

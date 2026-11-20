@@ -1590,6 +1590,23 @@ file channel's framing is described in `core/filechannel.py` and SECURITY.md (Fi
 A receiver over its own size limit (`files.max_bytes`, 2 GiB by default) fetches nothing and says
 so; the sender checks its own limit first and sends no manifest over it.
 
+## 12. Scotty extras (fork)
+
+Also the Scotty fork's alone. Four messages share one capability, `scotty_extras`: a peer refuses a
+`hello` or `welcome` listing more than 16 capabilities, and Scotty already lists 14, so each feature
+cannot have its own. A peer that does not list it never receives these, and a receiver drops any it
+gets from a peer that did not list it. Any linked peer may send them, either way round; each is
+acted on only while the receiving PC's own switch for that feature is on.
+
+| `type` | `data` | The receiver |
+|---|---|---|
+| `lock` | `{}` | locks its session, at most once per 5 seconds. There is no message that unlocks |
+| `files_push` | the fields of `files` (section 11) | fetches the files into its drop folder, as for a crossing, though it does not own the input |
+| `open_url` | `url`: an `http` or `https` URL of at most 2,000 characters, with a host, a valid port, no user name or password, and no whitespace or control character | opens it in its default browser |
+| `machine_info` | `macs`: 0 to 8 distinct MAC addresses, lowercase `aa:bb:cc:dd:ee:ff`, none all zeros or all ones | keeps them to wake the sender later with a magic packet (6 bytes of `ff`, then the MAC 16 times) |
+
+A message that breaks its rule is dropped whole.
+
 ## Versions
 
 - **Wire version 6** is in Beamer 1.5.0 and later. It refuses versions 5 and below, and they refuse

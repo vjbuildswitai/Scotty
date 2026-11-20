@@ -85,3 +85,14 @@
 ## Rollback
 - Each feature is a setting, and each has its own capability; turning one off or reverting its
   commit leaves the others.
+
+## Deviations (recorded while building)
+- **One capability, not one each.** A peer refuses a `hello` listing more than `MAX_CAPS` (16) and
+  Scotty already sends 14, so `lock`, `files_push`, `open_url` and `machine_info` all ride
+  `scotty_extras` (WIRE.md section 12). Each feature still has its own switch, in `scotty.json`'s
+  `extras` section, so turning one off still leaves the others. Rollback per feature is its switch
+  or its commit; the capability stays.
+- **Lock together** is in `win_app/lock_win.py`: `LockTogether` (switch, one lock per 5 s each way,
+  no echo of a lock a peer caused) and `SessionWatcher` (Qt native event filter for
+  `WM_WTSSESSION_CHANGE`). Lock messages go out on both the links this PC opened and the links
+  opened to it; the rate limit absorbs the duplicate.

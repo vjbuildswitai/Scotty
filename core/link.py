@@ -52,7 +52,10 @@ FOLLOW_AFTER_SECONDS = 10.0
 FOLLOW_EVERY_SECONDS = 30.0
 SEND_CHUNK = 65536
 _CAP_FOR = {protocol.MSG_GESTURE: "gestures", protocol.MSG_TEXT: "text", protocol.MSG_SETTINGS: "settings",
-            protocol.MSG_IDENTIFY_SCREENS: "identify_screens", protocol.MSG_FILES: protocol.CAP_CLIPBOARD_FILES}
+            protocol.MSG_IDENTIFY_SCREENS: "identify_screens", protocol.MSG_FILES: protocol.CAP_CLIPBOARD_FILES,
+            # Fork (Scotty): the extras share one capability (protocol.CAP_SCOTTY_EXTRAS says why).
+            protocol.MSG_LOCK: protocol.CAP_SCOTTY_EXTRAS, protocol.MSG_FILES_PUSH: protocol.CAP_SCOTTY_EXTRAS,
+            protocol.MSG_OPEN_URL: protocol.CAP_SCOTTY_EXTRAS, protocol.MSG_MACHINE_INFO: protocol.CAP_SCOTTY_EXTRAS}
 
 
 class LinkEnded(Exception):

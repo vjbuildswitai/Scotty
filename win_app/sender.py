@@ -249,6 +249,9 @@ class LinkSender:
         self.identify_callback: Optional[Callable] = None
         # Fork (Scotty): the files bridge (outgoing(host), incoming(host, read)), set by the app.
         self.files = None
+        # Fork (Scotty): `extras_callback(peer, message)` for WIRE.md section 12 messages (lock,
+        # files_push, open_url, machine_info) from a peer that speaks scotty_extras; set by the app.
+        self.extras_callback: Optional[Callable] = None
         # Fork (Scotty): head turn reads these from its camera thread to never switch mid-typing.
         self.last_key_at = float("-inf")
         self._head_keys_held: set = set()
@@ -1112,6 +1115,10 @@ class LinkSender:
                     taken = self._owner.files_arrived(peer, began_at if began_at is not None else self._clock())
                 if taken:
                     self._call(files.incoming, self.links.host(peer), read)
+        elif kind in protocol.EXTRAS_TYPES:
+            extras = getattr(self, "extras_callback", None)
+            if extras is not None and protocol.CAP_SCOTTY_EXTRAS in self.links.caps(peer):
+                self._call(extras, peer, message)
         elif kind == protocol.MSG_ARRANGEMENT:
             read = protocol.read_arrangement_v6(message, time.time())
             if read is not None and self.arrangement_callback is not None:
@@ -1155,6 +1162,11 @@ class LinkSender:
 
     def peers_up(self) -> list:
         return [peer for peer in self._peers if self.links.up(peer)]
+
+    def post_extras(self, message) -> int:
+        """Fork (Scotty): `message` to every live peer that speaks scotty_extras; how many took it."""
+        return sum(1 for peer in self.peers_up()
+                   if protocol.CAP_SCOTTY_EXTRAS in self.links.caps(peer) and self.links.post(peer, message))
 
     def _queue(self, actions) -> None:
         """Hands what the owner answered to the outbound worker, in order. Called with the lock still

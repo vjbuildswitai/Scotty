@@ -4529,6 +4529,14 @@ msgid "On. You are facing this PC."
 msgstr ""
 
 #: win_app/kvm_bridge_win.py
+msgid "Lock together"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Lock my other PCs when this one locks"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
 msgid "Where received files go"
 msgstr ""
 
@@ -4793,6 +4801,10 @@ msgstr ""
 
 #: win_app/kvm_bridge_win.py
 msgid "the other PC"
+msgstr ""
+
+#: win_app/kvm_bridge_win.py
+msgid "Win+L, closing the lid or the screen timeout locks the paired PCs that have this on. A paired PC can lock this one, never unlock it."
 msgstr ""
 
 #: win_app/kvm_bridge_win.py

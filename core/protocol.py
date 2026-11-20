@@ -488,6 +488,111 @@ def read_files(message):
             "count": data["count"], "total_bytes": data["total_bytes"]}
 
 
+# Scotty's extras (fork; WIRE.md section 12): lock together, files and links sent on purpose, and
+# what a PC needs to be woken. ONE capability for all of them: a peer refuses a hello that lists
+# more than MAX_CAPS (16), and Scotty already sends 14, so each feature cannot have its own.
+CAP_SCOTTY_EXTRAS = "scotty_extras"
+MSG_LOCK = "lock"
+MSG_FILES_PUSH = "files_push"
+MSG_OPEN_URL = "open_url"
+MSG_MACHINE_INFO = "machine_info"
+EXTRAS_TYPES = frozenset((MSG_LOCK, MSG_FILES_PUSH, MSG_OPEN_URL, MSG_MACHINE_INFO))
+OPEN_URL_MAX_CHARS = 2000
+MACHINE_MAX_MACS = 8
+_MAC = re.compile(r"[0-9a-f]{2}(:[0-9a-f]{2}){5}")
+
+
+def lock_msg() -> dict:
+    """This PC just locked; a peer with "Lock with the other PC" on locks too. Carries nothing."""
+    return {"type": MSG_LOCK, "data": {}}
+
+
+def read_lock(message) -> bool:
+    parsed = read_message(message)
+    return parsed is not None and parsed[0] == MSG_LOCK
+
+
+def files_push_msg(transfer: bytes, ticket: bytes, port: int, names, count: int, total_bytes: int) -> dict:
+    """Files sent on purpose (Explorer's Send to), not with a crossing: the same manifest as
+    files_msg under its own type, so a receiver can hold it to its own rule."""
+    message = files_msg(transfer, ticket, port, names, count, total_bytes)
+    return {"type": MSG_FILES_PUSH, "data": message["data"]}
+
+
+def read_files_push(message):
+    """As read_files, for a files_push."""
+    parsed = read_message(message)
+    if parsed is None or parsed[0] != MSG_FILES_PUSH:
+        return None
+    return read_files({"type": MSG_FILES, "data": parsed[1]})
+
+
+def safe_url(url) -> bool:
+    """A link another PC may open here: http or https, a host, no user name or password, no
+    whitespace or control characters, at most OPEN_URL_MAX_CHARS."""
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or not 0 < len(url) <= OPEN_URL_MAX_CHARS:
+        return False
+    if any(character.isspace() or unicodedata.category(character)[0] == "C" for character in url):
+        return False
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+        has_credentials = parts.username is not None or parts.password is not None
+        _port = parts.port  # raises ValueError for a malformed port
+    except ValueError:
+        return False
+    return parts.scheme in ("http", "https") and bool(host) and not has_credentials
+
+
+def open_url_msg(url: str) -> dict:
+    if not safe_url(url):
+        raise ValueError("not a link another PC may open")
+    return {"type": MSG_OPEN_URL, "data": {"url": url}}
+
+
+def read_open_url(message):
+    """The URL from an open_url, or None unless safe_url passes."""
+    parsed = read_message(message)
+    if parsed is None or parsed[0] != MSG_OPEN_URL:
+        return None
+    url = parsed[1].get("url")
+    return url if safe_url(url) else None
+
+
+def machine_info_msg(macs) -> dict:
+    """This PC's network adapters' MAC addresses, for Wake-on-LAN. Lower case, colon separated."""
+    macs = [mac.lower() for mac in macs]
+    message = {"type": MSG_MACHINE_INFO, "data": {"macs": macs}}
+    if read_machine_info(message) is None:
+        raise ValueError("not valid machine info")
+    return message
+
+
+def read_machine_info(message):
+    """The list of MAC addresses, or None when malformed: 0 to 8, each aa:bb:cc:dd:ee:ff, no
+    duplicates, none all zeros or broadcast."""
+    parsed = read_message(message)
+    if parsed is None or parsed[0] != MSG_MACHINE_INFO:
+        return None
+    macs = parsed[1].get("macs")
+    if not isinstance(macs, list) or len(macs) > MACHINE_MAX_MACS:
+        return None
+    if not all(isinstance(mac, str) and _MAC.fullmatch(mac) for mac in macs) or len(set(macs)) != len(macs):
+        return None
+    if any(mac in ("00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff") for mac in macs):
+        return None
+    return list(macs)
+
+
+def wake_packet(mac: str) -> bytes:
+    """The Wake-on-LAN magic packet: six 0xFF bytes, then the MAC sixteen times."""
+    if not isinstance(mac, str) or not _MAC.fullmatch(mac.lower()):
+        raise ValueError("not a MAC address")
+    raw = bytes.fromhex(mac.replace(":", ""))
+    return b"\xff" * 6 + raw * 16
+
+
 def gesture_msg(name: str) -> dict:
     """One completed system gesture (a GESTURE_* name). Unknown message types are
     ignored by the receiver, so this needs no protocol version bump."""

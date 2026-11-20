@@ -94,6 +94,7 @@ import platform_parts
 import scotty_files
 import headturn_win
 import headturn_calibrate
+import lock_win
 from core import headturn as core_headturn
 import qr_code
 import quit_signals as quit_signals_module
@@ -721,6 +722,19 @@ class WindowsApplication(QWidget):
                 calibration=core_headturn.Calibration.from_json(self.headturn_settings.get("calibration")),
                 camera_index=self.headturn_settings["camera"], settings=self.headturn_settings)
             self.bridge.headturn_event.connect(self._on_headturn_event)
+        # Fork (Scotty): WIRE.md section 12 (docs/plans/2026-11-20-six-features.md). Peers reach
+        # these only through _on_extras; each feature has its own switch in extras_settings.
+        self.extras_settings = app_config.load_extras_settings(self.files_path)
+        self.lock_together = lock_win.LockTogether(self._post_extras, lock_win.lock_workstation,
+                                                   enabled=self.extras_settings["lock_together"])
+        self.session_watcher = None
+        if sys.platform == "win32":
+            self.server.extras_callback = self._on_extras
+            self.sender.extras_callback = self._on_extras
+            if lock_win.SessionWatcher is not None:
+                self.session_watcher = lock_win.SessionWatcher(self.lock_together.local_locked)
+                QApplication.instance().installNativeEventFilter(self.session_watcher)
+                QTimer.singleShot(0, self._watch_session)
         self.sender.arrangement_callback = lambda peer, read: self.bridge.arrangement.emit(
             protocol.id_text(peer), read["edge"], read["set_at"], protocol.id_text(read["by"]), read.get("way_back"),
             protocol.id_text(read["way_back_by"]) if read.get("way_back_by") else None
@@ -1020,6 +1034,8 @@ class WindowsApplication(QWidget):
             layout.addWidget(self._files_module())
         if getattr(self, "headturn", None) is not None:
             layout.addWidget(self._headturn_module())
+        if getattr(self, "session_watcher", None) is not None:
+            layout.addWidget(self._extras_module())
         self.permissions_module = None
         if pages_win.linux_permissions_visible(sys.platform, platform_parts.WAYLAND):
             self.permissions_module = self._permissions_module()
@@ -1330,6 +1346,45 @@ class WindowsApplication(QWidget):
             self._calibrate_headturn()
             return
         self._apply_headturn()
+
+    # Fork (Scotty): WIRE.md section 12.
+
+    def _post_extras(self, message: dict) -> int:
+        """`message` to every linked peer that speaks scotty_extras, both ways round."""
+        return self.server.post_extras(message) + self.sender.post_extras(message)
+
+    def _on_extras(self, peer, message) -> None:
+        """A section 12 message from a paired peer, on its link's thread. Untrusted: each feature
+        reads it with its protocol reader and acts only when its own switch is on."""
+        kind = message.get("type") if isinstance(message, dict) else None
+        if kind == protocol.MSG_LOCK:
+            if self.lock_together.peer_asked(message):
+                LOGGER.info("Locked because %s locked", protocol.id_text(peer))
+
+    def _watch_session(self) -> None:
+        watcher = getattr(self, "session_watcher", None)
+        if watcher is not None and not watcher.start(int(self.winId())):
+            LOGGER.warning("Windows did not register Scotty for session lock notifications")
+
+    def _extras_module(self) -> QWidget:
+        module = widgets.Module(tr("Lock together"))
+        self.lock_together_switch = widgets.Switch(tr("Lock my other PCs when this one locks"))
+        self.lock_together_switch.setFont(theme.font(theme.TYPE["body"]))
+        self.lock_together_switch.setChecked(bool(self.extras_settings.get("lock_together")))
+        self.lock_together_switch.toggled.connect(lambda on: self._set_extras(lock_together=bool(on)))
+        module.body.addWidget(self.lock_together_switch)
+        module.body.addWidget(self._wrapped(
+            tr("Win+L, closing the lid or the screen timeout locks the paired PCs that have this on. "
+               "A paired PC can lock this one, never unlock it."), "note"))
+        return module
+
+    def _set_extras(self, **changes) -> None:
+        self.extras_settings = dict(self.extras_settings, **changes)
+        self.lock_together.enabled = bool(self.extras_settings.get("lock_together"))
+        try:
+            app_config.save_extras_settings(self.files_path, self.extras_settings)
+        except OSError:
+            LOGGER.exception("Could not save Scotty's settings")
 
     def toggle_headturn_pause(self) -> None:
         self.headturn_paused = not self.headturn_paused
@@ -2334,7 +2389,9 @@ class WindowsApplication(QWidget):
             # A swipe has no shortcut every Linux desktop shares, so Linux does not offer gestures.
             "caps": [cap for cap in ("clipboard", "clipboard_image", "gestures", "media_keys", "text", "settings", "design_sync", "layout", "profiles", "displays", "identify_screens", "ping_rtt", "motion_path")
                      if not (cap == "gestures" and OWN_PLATFORM == "linux")]
-                    + ([protocol.CAP_CLIPBOARD_FILES] if getattr(self, "files", None) is not None and self.files.advertised else []),
+                    + ([protocol.CAP_CLIPBOARD_FILES] if getattr(self, "files", None) is not None and self.files.advertised else [])
+                    # 15 caps in all; a peer refuses more than protocol.MAX_CAPS (16).
+                    + ([protocol.CAP_SCOTTY_EXTRAS] if getattr(self, "session_watcher", None) is not None else []),
             "port": self._settings_port,
         }
 
@@ -5854,6 +5911,8 @@ class WindowsApplication(QWidget):
             self.files.stop()
         if getattr(self, "headturn", None) is not None:
             self.headturn.stop()
+        if getattr(self, "session_watcher", None) is not None:
+            self.session_watcher.stop()
         self.refresh_timer.stop()
         self.update_checker.stop()
         if self.pairing is not None:

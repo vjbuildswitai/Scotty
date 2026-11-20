@@ -424,6 +424,8 @@ class _Link:
                 return True
             if message.get("type") == protocol.MSG_FILES and protocol.CAP_CLIPBOARD_FILES not in self.caps:
                 return True
+            if message.get("type") in protocol.EXTRAS_TYPES and protocol.CAP_SCOTTY_EXTRAS not in self.caps:
+                return True
             if len(self.outbox) >= OUTBOX_LIMIT:
                 LOGGER.warning("%s stopped reading; closing its link", self.name)
                 self._close_locked()
@@ -586,6 +588,9 @@ class LinkResponder:
         # Fork (Scotty): an object with `outgoing(host)` -> a `files` manifest or None, and
         # `incoming(host, read)`, set by the app; None leaves files out entirely.
         self.files = None
+        # Fork (Scotty): `extras_callback(peer, message)` for WIRE.md section 12 messages from a
+        # peer when both ends list scotty_extras; called on the link's thread, set by the app.
+        self.extras_callback = None
         self._prebound_listener = listener
         # This machine's speed for a peer's pointer and scroll, and whether
         # its edges are held (Pause crossing, a full-screen app), which keeps the zones from firing.
@@ -1115,6 +1120,8 @@ class LinkResponder:
                 self._on_clipboard(link, message)
             elif kind == protocol.MSG_FILES:
                 self._on_files(link, message)
+            elif kind in protocol.EXTRAS_TYPES:
+                self._on_extras(link, message)
             elif kind == protocol.MSG_ARRANGEMENT:
                 read = protocol.read_arrangement_v6(message, time.time())
                 if read is not None:
@@ -1806,6 +1813,21 @@ class LinkResponder:
         with self._lock:
             link = self._links.get(peer)
         return link is not None and link.post(message)
+
+    def _on_extras(self, link: _Link, message) -> None:
+        """Fork (Scotty): a WIRE.md section 12 message, passed to the app only when both ends list
+        scotty_extras. Any linked peer may send one (a lock, a push); the app checks each."""
+        extras = getattr(self, "extras_callback", None)
+        if (extras is not None and protocol.CAP_SCOTTY_EXTRAS in link.caps
+                and protocol.CAP_SCOTTY_EXTRAS in link.own_caps):
+            extras(link.peer_id, message)
+
+    def post_extras(self, message: dict) -> int:
+        """Fork (Scotty): `message` on every link whose two ends list scotty_extras; how many took it."""
+        with self._lock:
+            links = list(self._links.values())
+        return sum(1 for link in links if protocol.CAP_SCOTTY_EXTRAS in link.caps
+                   and protocol.CAP_SCOTTY_EXTRAS in link.own_caps and link.post(message))
 
     # The clipboard (section 5)
 
