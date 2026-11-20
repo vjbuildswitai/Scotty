@@ -6,7 +6,8 @@
 
 Scotty is free, open-source software for two or more Windows 10 or 11 PCs on the same network. Move
 the pointer off the edge of one screen and it carries on onto the next PC; the keyboard goes with
-it. Copy files or folders in Explorer on one PC, move across, press Ctrl+V, and they arrive.
+it. Copy files or folders in Explorer on one PC, move across, press Ctrl+V, and they arrive. Or
+turn on head turn and just look at the other PC's screen.
 
 Scotty is built on [Beamer](https://github.com/kalkman-code/beamer) by Toby George Read Kalkman
 (Kalkman Code), which does the keyboard, mouse and clipboard. Scotty adds the files. Beamer's own
@@ -16,7 +17,16 @@ guide, for everything the two share, is in [docs/BEAMER.md](docs/BEAMER.md).
 
 Get the latest from the [releases page](https://github.com/vjbuildswitai/Scotty/releases/latest):
 `Scotty-Portable-<version>-windows-x64.zip` runs from any folder without installing. Put it on each
-PC. The builds are not code-signed, so Windows SmartScreen asks once: choose More info, then Run anyway.
+PC. Releases are signed; see the [code signing policy](CODE-SIGNING.md). A newly signed release can
+still get a SmartScreen notice for its first days while Windows learns it; the publisher name it
+shows tells you it is genuine.
+
+## Head turn (optional)
+
+Turn on **Switch PCs by turning your head** on Overview and calibrate once (look at this screen,
+then at the other PC's). From then on, turning to face the other laptop sends the keyboard and
+pointer there. It uses the webcam of the PC your keyboard and mouse are plugged into, never
+switches while you type, and saves or sends no picture. Off by default; pause it from the tray.
 
 ## How it works
 
@@ -112,8 +122,11 @@ five-minute manual check on two PCs is in [TESTING.md](TESTING.md).
 
 ## Credits and licence
 
-Scotty is a fork of [Beamer](https://github.com/kalkman-code/beamer) 1.5.21 by Toby George Read
-Kalkman (Kalkman Code), and like Beamer is free software under the
-[GNU General Public License version 3](LICENSE). Scotty's changes are listed in
-[CHANGELOG.md](CHANGELOG.md). Scotty and Beamer can be installed side by side but not run at the
+Scotty is made by Vijayaraj Anandan and built on [Beamer](https://github.com/kalkman-code/beamer)
+1.5.21 by Toby George Read Kalkman (Kalkman Code). Like Beamer it is free software under the
+[GNU General Public License version 3](LICENSE); copyright for both is in [NOTICE.md](NOTICE.md).
+Scotty's changes are listed in [CHANGELOG.md](CHANGELOG.md). The `mac_app` and `flatpak` folders
+are Beamer's, kept so upstream fixes still merge; Scotty ships for Windows only. To report a
+problem or help, see [CONTRIBUTING.md](CONTRIBUTING.md); signed releases are explained in
+[CODE-SIGNING.md](CODE-SIGNING.md). Scotty and Beamer can be installed side by side but not run at the
 same time (they use the same ports); each keeps its own settings and pairings.

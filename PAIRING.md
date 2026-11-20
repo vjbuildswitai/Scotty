@@ -1,5 +1,9 @@
 # Pairing
 
+> **Scotty:** this is Beamer's protocol, which Scotty speaks unchanged so the two work together.
+> Names inside it (such as `beamer-pair-v2`) are protocol constants and must stay as they are.
+> Scotty's own addition, the files message, is section 11 of WIRE.md.
+
 How two machines running Beamer agree a token from the six-digit code, exactly enough to write
 a second implementation. The code is `core/pairing.py`, which both apps
 import; `core/tests/pairing_vectors.json` holds test vectors for every step. What

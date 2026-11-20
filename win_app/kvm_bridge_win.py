@@ -92,6 +92,9 @@ import hardware_win
 import peers_view
 import platform_parts
 import scotty_files
+import headturn_win
+import headturn_calibrate
+from core import headturn as core_headturn
 import qr_code
 import quit_signals as quit_signals_module
 import global_shortcut_portal
@@ -346,6 +349,7 @@ class StatusBridge(QObject):
     settings = Signal(str, object)
     identify = Signal(object)
     files_event = Signal(object)  # fork (Scotty): a FilesBridge notice, from any thread
+    headturn_event = Signal(object)  # fork (Scotty): a HeadTurn notice, from its camera thread
     shook_home = Signal(object)
     alert = Signal(str, str)
     # (version, url) when a newer Beamer is out, else None.
@@ -703,6 +707,20 @@ class WindowsApplication(QWidget):
             self.server.files = self.files
             self.sender.files = self.files
             # Started with the receiver (_start_receiver), so an unpaired Scotty never listens.
+        # Fork (Scotty): head turn (docs/plans/2026-11-19-head-turn-switch.md). Off by default; the
+        # camera opens only while it is on, calibrated, not paused and this PC sends input.
+        self.headturn = None
+        self.headturn_settings = app_config.load_headturn_settings(self.files_path)
+        self.headturn_paused = False
+        self._headturn_state = "stopped"
+        self._headturn_faced = None
+        self._headturn_dialog = None
+        if sys.platform == "win32":
+            self.headturn = headturn_win.HeadTurn(
+                self.sender, self.bridge.headturn_event.emit,
+                calibration=core_headturn.Calibration.from_json(self.headturn_settings.get("calibration")),
+                camera_index=self.headturn_settings["camera"], settings=self.headturn_settings)
+            self.bridge.headturn_event.connect(self._on_headturn_event)
         self.sender.arrangement_callback = lambda peer, read: self.bridge.arrangement.emit(
             protocol.id_text(peer), read["edge"], read["set_at"], protocol.id_text(read["by"]), read.get("way_back"),
             protocol.id_text(read["way_back_by"]) if read.get("way_back_by") else None
@@ -1000,6 +1018,8 @@ class WindowsApplication(QWidget):
         # getattr: tests build pages on a bare WindowsApplication that never made a FilesBridge.
         if getattr(self, "files", None) is not None:
             layout.addWidget(self._files_module())
+        if getattr(self, "headturn", None) is not None:
+            layout.addWidget(self._headturn_module())
         self.permissions_module = None
         if pages_win.linux_permissions_visible(sys.platform, platform_parts.WAYLAND):
             self.permissions_module = self._permissions_module()
@@ -1204,6 +1224,161 @@ class WindowsApplication(QWidget):
             tr("Applies to files this PC sends and receives. Turning files on or off takes effect for the "
                "other machine when the link next connects."), "note", wrap=True))
         return module
+
+    # Fork (Scotty): head turn
+
+    @staticmethod
+    def _wrapped(text: str, role: str) -> QLabel:
+        # Wrapped and free to shrink (1, not 0: a minimum width of 0 means "use the size hint").
+        made = widgets.label(text, role, wrap=True)
+        made.setMinimumWidth(1)
+        return made
+
+    def _headturn_module(self) -> QWidget:
+        module = widgets.Module(tr("Head turn"))
+        self.headturn_switch = widgets.Switch(tr("Switch PCs by turning your head"))
+        self.headturn_switch.setFont(theme.font(theme.TYPE["body"]))
+        self.headturn_switch.setChecked(bool(self.headturn_settings.get("enabled")))
+        self.headturn_switch.toggled.connect(lambda on: self._set_headturn(enabled=bool(on)))
+        module.body.addWidget(self.headturn_switch)
+        module.body.addWidget(self._wrapped(
+            tr("This PC's webcam sees which screen you face. Each frame stays in memory for a moment and is "
+               "never saved or sent. It never switches while you type, hold a key or look at the keyboard."),
+            "note"))
+        self.headturn_status = self._wrapped("", "readout")
+        module.body.addWidget(self.headturn_status)
+        buttons = QHBoxLayout()
+        self.headturn_calibrate_button = widgets.ActionButton(tr("Calibrate"))
+        self.headturn_calibrate_button.setProperty("vernier", "small")
+        self.headturn_calibrate_button.clicked.connect(self._calibrate_headturn)
+        buttons.addWidget(self.headturn_calibrate_button)
+        self.headturn_privacy_button = widgets.ActionButton(tr("Camera settings"))
+        self.headturn_privacy_button.setProperty("vernier", "small")
+        self.headturn_privacy_button.clicked.connect(
+            lambda _checked=False: QDesktopServices.openUrl(QUrl("ms-settings:privacy-webcam")))
+        buttons.addWidget(self.headturn_privacy_button)
+        buttons.addStretch(1)
+        module.body.addLayout(buttons)
+        self._refresh_headturn_card()
+        return module
+
+    def _headturn_status_text(self) -> str:
+        head = self.headturn
+        if head is None:
+            return ""
+        if head.calibration is None:
+            return tr("Calibrate first: it takes about ten seconds.")
+        state = self._headturn_state
+        if state == "blocked":
+            return tr("Windows is blocking the camera for desktop apps. Allow it under Camera settings.")
+        if state == "no_camera":
+            return tr("No camera found. Check it is plugged in and not used by another app.")
+        if state == "error":
+            return tr("Head turn stopped after an error. The log has the details.")
+        if not self.headturn_settings.get("enabled"):
+            return tr("Off. The camera is not in use.")
+        if self.headturn_paused:
+            return tr("Paused from the tray.")
+        if state != "running":
+            return tr("Starts when this PC sends its keyboard and mouse.")
+        faced = self._headturn_faced
+        if faced is None:
+            return tr("On. Can't see your face right now, so input stays where it is.")
+        if faced == core_headturn.HOME:
+            return tr("On. You are facing this PC.")
+        return tr("On. You are facing {name}.").format(name=self._headturn_name(faced))
+
+    def _headturn_name(self, target: str) -> str:
+        desktops = peerlist.desktops(self.book.peers())
+        return self._shown(peerlist.label_for(desktops, peer_id=target) or tr("the other PC"))
+
+    def _refresh_headturn_card(self) -> None:
+        label = getattr(self, "headturn_status", None)
+        if label is not None:
+            label.setText(self._headturn_status_text())
+        button = getattr(self, "headturn_privacy_button", None)
+        if button is not None:
+            button.setVisible(self._headturn_state == "blocked")
+        action = getattr(self, "headturn_action", None)
+        if action is not None:
+            action.setVisible(bool(self.headturn_settings.get("enabled")))
+            action.setText(tr("Resume head turn") if self.headturn_paused else tr("Pause head turn"))
+
+    def _headturn_wanted(self) -> bool:
+        head = getattr(self, "headturn", None)
+        return bool(head is not None and self.headturn_settings.get("enabled") and head.calibration is not None
+                    and not self.headturn_paused and not self._closing and self._any_send()
+                    and self._headturn_dialog is None)
+
+    def _apply_headturn(self) -> None:
+        head = getattr(self, "headturn", None)
+        if head is None:
+            return
+        if self._headturn_wanted():
+            head.start()
+        elif self._headturn_dialog is None:
+            head.stop()
+        self._refresh_headturn_card()
+
+    def _set_headturn(self, **changes) -> None:
+        self.headturn_settings = dict(self.headturn_settings, **changes)
+        try:
+            app_config.save_headturn_settings(self.files_path, self.headturn_settings)
+        except OSError:
+            LOGGER.exception("Could not save the head turn settings")
+        if changes.get("enabled") and self.headturn is not None and self.headturn.calibration is None:
+            self._calibrate_headturn()
+            return
+        self._apply_headturn()
+
+    def toggle_headturn_pause(self) -> None:
+        self.headturn_paused = not self.headturn_paused
+        self._apply_headturn()
+
+    def _on_headturn_event(self, event) -> None:
+        if self._closing or not isinstance(event, dict):
+            return
+        if "state" in event:
+            self._headturn_state = event["state"]
+            if event["state"] != "running":
+                self._headturn_faced = None
+        if "faced" in event:
+            self._headturn_faced = event["faced"]
+        if "calibrated" in event and self._headturn_dialog is not None:
+            self._headturn_dialog.on_calibrated(event["calibrated"], bool(event.get("ok")))
+        self._refresh_headturn_card()
+
+    def _calibrate_headturn(self) -> None:
+        head = self.headturn
+        if head is None or self._headturn_dialog is not None:
+            return
+        desktops = peerlist.desktops(self.book.peers())
+        screens = [(core_headturn.HOME, tr("this PC"))]
+        screens += [(entry["id"], self._headturn_name(entry["id"])) for entry in desktops if entry.get("id")]
+        if len(screens) < 2:
+            self.bridge.alert.emit(brand.NAME, tr("Pair another PC first, then calibrate head turn."))
+            return
+        if not head.start():
+            self._refresh_headturn_card()
+            return
+
+        def done(calibration) -> None:
+            self.headturn_settings["calibration"] = calibration.to_json()
+            self._set_headturn(enabled=True)
+
+        def closed(_result) -> None:
+            self._headturn_dialog = None
+            if head.calibration is None and self.headturn_settings.get("enabled"):
+                self._set_headturn(enabled=False)
+                if hasattr(self, "headturn_switch"):
+                    self.headturn_switch.blockSignals(True)
+                    self.headturn_switch.setChecked(False)
+                    self.headturn_switch.blockSignals(False)
+            self._apply_headturn()
+
+        self._headturn_dialog = headturn_calibrate.CalibrationWindow(head, screens, done, self)
+        self._headturn_dialog.finished.connect(closed)
+        self._headturn_dialog.start()
 
     def _set_files(self, **changes) -> None:
         if getattr(self, "files", None) is None:
@@ -5182,6 +5357,11 @@ class WindowsApplication(QWidget):
         self.redirect_action.triggered.connect(self.toggle_redirect)
         self.pause_action = menu.addAction(tr("Pause crossing"))
         self.pause_action.triggered.connect(self.toggle_pause)
+        # Fork (Scotty): shown while head turn is on (_refresh_headturn_card).
+        self.headturn_action = menu.addAction(tr("Pause head turn"))
+        self.headturn_action.triggered.connect(lambda _checked=False: self.toggle_headturn_pause())
+        self.headturn_action.setVisible(bool(getattr(self, "headturn_settings", {}).get("enabled"))
+                                        and getattr(self, "headturn", None) is not None)
         menu.addSeparator()
         self.tray_menu = menu
         # One tick per direction, each the same switch the Overview page shows, so either
@@ -5398,6 +5578,9 @@ class WindowsApplication(QWidget):
             self._sending_detail = f"This PC's keyboard could not be captured: {exc}"
             return
         self.sender.start(config)
+        apply_headturn = getattr(self, "_apply_headturn", None)  # absent on test stand-ins
+        if apply_headturn is not None:
+            apply_headturn()
 
     def _capture_stopped(self, error: BaseException) -> None:
         """On the capture thread, when capture ended on its own (the X server gone, a stalled
@@ -5669,6 +5852,8 @@ class WindowsApplication(QWidget):
         self.identify_screens.stop()
         if getattr(self, "files", None) is not None:
             self.files.stop()
+        if getattr(self, "headturn", None) is not None:
+            self.headturn.stop()
         self.refresh_timer.stop()
         self.update_checker.stop()
         if self.pairing is not None:
@@ -5726,6 +5911,9 @@ class WindowsApplication(QWidget):
         super().keyPressEvent(event)
 
     def _stop_sending(self) -> None:
+        head = getattr(self, "headturn", None)
+        if head is not None and getattr(self, "_headturn_dialog", None) is None:
+            head.stop()  # nothing to move once this PC stops sending
         self.sender.stop()
         self.hooks.stop()
         self._sending_detail = "Off"

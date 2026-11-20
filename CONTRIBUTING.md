@@ -1,31 +1,37 @@
-# Contributing
+# Contributing to Scotty
 
-Beamer is written and kept up by one person, in spare time. Issues are welcome and read, but a
-reply is not guaranteed.
+Scotty is made by one person, Vijayaraj Anandan, in spare time. Issues and pull requests are
+welcome and read; there is no promise that every idea gets built.
 
-## Bug reports
+## Reporting a problem
 
-Use the bug report form, and attach the logs from both machines where you can:
-`~/Library/Logs/Beamer/Beamer.log` on the Mac and `%LOCALAPPDATA%\Beamer\Beamer.log` on Windows.
-They hold your machines' names and local network addresses, so look them over first. On Linux, use
-Open log folder from Beamer's menu.
+Open an issue with the **Bug report** form. It asks for:
 
-## Feature requests
+- the Scotty version on each PC (Overview, bottom left, or About in the tray menu);
+- Windows version on each PC;
+- what you did, what happened, what you expected;
+- `Scotty.log` from each PC: tray menu, **Open log folder** (usually
+  `%LOCALAPPDATA%\Scotty\Scotty.log`; next to `Scotty.exe` for the portable copy).
 
-Use the feature request form, or add a reaction to an existing request rather than a "+1"
-comment. There is no roadmap and no promise that anything gets built. Beamer 1.5.0 supports Intel
-Macs, experimental Linux on GNOME Wayland or X11, Mac-to-Mac and Windows-to-Windows pairs, and three machines
-at once. Test builds appear on the releases page as pre-releases.
+Security problems: do **not** open a public issue. See [SECURITY.md](SECURITY.md).
+
+## Problems that are Beamer's
+
+Scotty is built on [Beamer](https://github.com/kalkman-code/beamer). If something also happens in
+Beamer itself (crossing, keyboard layouts, clipboard text and images, pairing), report it there
+too, so the fix reaches both. Scotty's own parts are files across the edge, head turn, the setup
+guide and the Windows packaging.
 
 ## Pull requests
 
-Pull requests are welcome. Sign off every commit with `git commit -s`. The sign-off is the
-[Developer Certificate of Origin](https://developercertificate.org): it confirms the change is your
-own work, or that you have the right to submit it, and that you license it under GPL-3.0-only, the
-licence Beamer is released under. There is no separate contributor agreement. For anything bigger
-than a small, obvious fix, open an issue first so we agree the approach before you write code.
+- One change per pull request, into `main`, with a test that fails without it.
+- `bash scripts/verify.sh` must pass (Git Bash on Windows). Paste its last lines in the PR.
+- Anything that changes the file channel keeps every promise in SECURITY.md (Files) and adds a
+  test for it.
+- New on-screen text goes through `tr()` and gets an Italian line in `locales/it.po`
+  (`python tools/i18n_extract.py`, then `--check`).
+- Never change what goes over the wire for existing messages: stock Beamer must keep talking to
+  Scotty (WIRE.md).
 
-## Building it
-
-The README's "Building from source" and "Development checks" sections cover macOS and Windows.
-For the Linux Flatpak build, see `docs/flatpak-build.md`.
+By contributing you agree your work is released under the GPL-3.0, the licence Scotty and Beamer
+use. There is no separate contributor agreement.
